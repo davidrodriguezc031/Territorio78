@@ -1,0 +1,18 @@
+[build]
+  publish = "sitio"
+  command = ""
+  # Solo se vuelve a publicar cuando cambia algo dentro de sitio/
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- sitio/"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Cache-Control = "public, max-age=300"
+
+[[headers]]
+  for = "/censo/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=600"
+    Access-Control-Allow-Origin = "*"

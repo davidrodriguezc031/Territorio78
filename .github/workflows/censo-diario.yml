@@ -1,0 +1,93 @@
+name: Actualización censal diaria
+
+on:
+  schedule:
+    # 6:20 a. m. en Puerto Rico (UTC-4), todos los días
+    - cron: "20 10 * * *"
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: "Volver a comprobar archivos aunque sus metadatos no cambien"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: censo-diario
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Consultar las fuentes oficiales del Censo
+        id: censo
+        env:
+          CENSUS_API_KEY: ${{ secrets.CENSUS_API_KEY }}
+        run: |
+          FLAGS=""
+          # Los domingos, o cuando se pide a mano, se comprueban también las revisiones de archivos existentes.
+          if [ "$(date -u +%u)" = "7" ] || [ "${{ inputs.refresh }}" = "true" ]; then FLAGS="--refresh"; fi
+          set +e
+          python repositorio/actualizar.py $FLAGS --export exportacion 2> pendientes.txt
+          code=$?
+          set -e
+          cat pendientes.txt
+          echo "codigo=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" != "0" ]; then
+            echo "::warning title=Series pendientes::Algunas series no se pudieron actualizar; el sitio conserva su última carga válida para ellas."
+          fi
+          test -f exportacion/observations.json
+
+      - name: Publicar en el sitio
+        id: publicar
+        run: |
+          python repositorio/publicar.py exportacion sitio/censo/data | tee publicar.txt
+          if git diff --quiet -- sitio/censo/data/observations.json; then
+            echo "datos=sin_cambios" >> "$GITHUB_OUTPUT"
+          else
+            echo "datos=cambiados" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Guardar cambios
+        run: |
+          git config user.name "territorio78-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # La base SQLite se guarda cuando cambian los datos y cada domingo (catálogo al día),
+          # para no añadir 17 MB al historial todos los días.
+          if [ "${{ steps.publicar.outputs.datos }}" = "cambiados" ] || [ "$(date -u +%u)" = "7" ]; then
+            git add repositorio/observatorio.sqlite
+            cp exportacion/manifest.json repositorio/manifiesto.json
+            git add repositorio/manifiesto.json
+          else
+            git checkout -- repositorio/observatorio.sqlite 2>/dev/null || true
+          fi
+          git add sitio/censo/data/observations.json sitio/censo/data/manifest.json sitio/censo/data/estado.json
+          if git diff --cached --quiet; then
+            echo "Sin cambios que guardar."
+            exit 0
+          fi
+          resumen=$(head -n 1 publicar.txt)
+          git commit -m "Censo: actualización automática $(date -u +%Y-%m-%d)" -m "$resumen"
+          git push
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "### Actualización censal $(date -u +%Y-%m-%d)"
+            echo ""
+            echo "- Datos: ${{ steps.publicar.outputs.datos || 'no publicados' }}"
+            echo "- Código de actualizar.py: ${{ steps.censo.outputs.codigo }}"
+            [ -f publicar.txt ] && sed 's/^/- /' publicar.txt
+            [ -s pendientes.txt ] && { echo ""; echo "Pendientes:"; sed 's/^/    /' pendientes.txt; }
+          } >> "$GITHUB_STEP_SUMMARY"

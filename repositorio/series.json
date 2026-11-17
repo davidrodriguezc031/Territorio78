@@ -1,0 +1,494 @@
+{
+  "acs/acs5": {
+    "id": "acs5",
+    "window": 5,
+    "barrios": true,
+    "fullMunicipios": true,
+    "variables": [
+      {
+        "id": "population",
+        "label": "Población total",
+        "unit": "personas",
+        "moe": true,
+        "table": "B01003",
+        "field": "B01003_001E",
+        "marginField": "B01003_001M",
+        "line": "001"
+      },
+      {
+        "id": "median_age",
+        "label": "Mediana de edad",
+        "unit": "años",
+        "moe": true,
+        "table": "B01002",
+        "field": "B01002_001E",
+        "marginField": "B01002_001M",
+        "line": "001"
+      },
+      {
+        "id": "housing",
+        "label": "Unidades de vivienda",
+        "unit": "unidades",
+        "moe": true,
+        "table": "B25001",
+        "field": "B25001_001E",
+        "marginField": "B25001_001M",
+        "line": "001"
+      },
+      {
+        "id": "occupied_housing",
+        "label": "Viviendas ocupadas",
+        "unit": "unidades",
+        "moe": true,
+        "table": "B25002",
+        "field": "B25002_002E",
+        "marginField": "B25002_002M",
+        "line": "002"
+      },
+      {
+        "id": "vacant_housing",
+        "label": "Viviendas vacantes",
+        "unit": "unidades",
+        "moe": true,
+        "table": "B25002",
+        "field": "B25002_003E",
+        "marginField": "B25002_003M",
+        "line": "003"
+      },
+      {
+        "id": "owner_occupied",
+        "label": "Viviendas ocupadas por dueños",
+        "unit": "unidades",
+        "moe": true,
+        "table": "B25003",
+        "field": "B25003_002E",
+        "marginField": "B25003_002M",
+        "line": "002"
+      },
+      {
+        "id": "renter_occupied",
+        "label": "Viviendas ocupadas por inquilinos",
+        "unit": "unidades",
+        "moe": true,
+        "table": "B25003",
+        "field": "B25003_003E",
+        "marginField": "B25003_003M",
+        "line": "003"
+      },
+      {
+        "id": "median_rent",
+        "label": "Mediana de alquiler bruto mensual",
+        "unit": "USD",
+        "moe": true,
+        "table": "B25064",
+        "field": "B25064_001E",
+        "marginField": "B25064_001M",
+        "line": "001"
+      },
+      {
+        "id": "household_income",
+        "label": "Mediana del ingreso del hogar",
+        "unit": "USD",
+        "moe": true,
+        "table": "B19013",
+        "field": "B19013_001E",
+        "marginField": "B19013_001M",
+        "line": "001"
+      },
+      {
+        "id": "per_capita_income",
+        "label": "Ingreso per cápita",
+        "unit": "USD",
+        "moe": true,
+        "table": "B19301",
+        "field": "B19301_001E",
+        "marginField": "B19301_001M",
+        "line": "001"
+      },
+      {
+        "id": "poverty_universe",
+        "label": "Personas con condición de pobreza determinada",
+        "unit": "personas",
+        "moe": true,
+        "table": "B17001",
+        "field": "B17001_001E",
+        "marginField": "B17001_001M",
+        "line": "001"
+      },
+      {
+        "id": "below_poverty",
+        "label": "Personas bajo el umbral de pobreza",
+        "unit": "personas",
+        "moe": true,
+        "table": "B17001",
+        "field": "B17001_002E",
+        "marginField": "B17001_002M",
+        "line": "002"
+      },
+      {
+        "id": "civilian_labor_force",
+        "label": "Fuerza laboral civil",
+        "unit": "personas",
+        "moe": true,
+        "table": "B23025",
+        "field": "B23025_003E",
+        "marginField": "B23025_003M",
+        "line": "003"
+      },
+      {
+        "id": "civilian_employed",
+        "label": "Personas civiles empleadas",
+        "unit": "personas",
+        "moe": true,
+        "table": "B23025",
+        "field": "B23025_004E",
+        "marginField": "B23025_004M",
+        "line": "004"
+      },
+      {
+        "id": "civilian_unemployed",
+        "label": "Personas civiles desempleadas",
+        "unit": "personas",
+        "moe": true,
+        "table": "B23025",
+        "field": "B23025_005E",
+        "marginField": "B23025_005M",
+        "line": "005"
+      },
+      {
+        "id": "education_universe",
+        "label": "Población de 25 años o más",
+        "unit": "personas",
+        "moe": true,
+        "table": "B15003",
+        "field": "B15003_001E",
+        "marginField": "B15003_001M",
+        "line": "001"
+      },
+      {
+        "id": "bachelors",
+        "label": "Personas de 25 años o más cuyo grado mayor es bachillerato",
+        "unit": "personas",
+        "moe": true,
+        "table": "B15003",
+        "field": "B15003_022E",
+        "marginField": "B15003_022M",
+        "line": "022"
+      },
+      {
+        "id": "commute_universe",
+        "label": "Trabajadores de 16 años o más",
+        "unit": "personas",
+        "moe": true,
+        "table": "B08301",
+        "field": "B08301_001E",
+        "marginField": "B08301_001M",
+        "line": "001"
+      },
+      {
+        "id": "public_transport",
+        "label": "Trabajadores que usan transporte colectivo",
+        "unit": "personas",
+        "moe": true,
+        "table": "B08301",
+        "field": "B08301_010E",
+        "marginField": "B08301_010M",
+        "line": "010"
+      },
+      {
+        "id": "work_from_home",
+        "label": "Personas que trabajan desde su hogar",
+        "unit": "personas",
+        "moe": true,
+        "table": "B08301",
+        "field": "B08301_021E",
+        "marginField": "B08301_021M",
+        "line": "021"
+      },
+      {
+        "id": "internet_households",
+        "label": "Hogares con suscripción a internet",
+        "unit": "hogares",
+        "moe": true,
+        "table": "B28002",
+        "field": "B28002_002E",
+        "marginField": "B28002_002M",
+        "line": "002"
+      }
+    ],
+    "title": "Encuesta sobre la Comunidad de Puerto Rico · 5 años"
+  },
+  "acs/acs1": {
+    "id": "acs1",
+    "window": 1,
+    "barrios": false,
+    "fullMunicipios": false,
+    "variables": [
+      {
+        "id": "population",
+        "label": "Población total",
+        "unit": "personas",
+        "moe": true,
+        "table": "B01003",
+        "field": "B01003_001E",
+        "marginField": "B01003_001M",
+        "line": "001"
+      },
+      {
+        "id": "median_age",
+        "label": "Mediana de edad",
+        "unit": "años",
+        "moe": true,
+        "table": "B01002",
+        "field": "B01002_001E",
+        "marginField": "B01002_001M",
+        "line": "001"
+      },
+      {
+        "id": "housing",
+        "label": "Unidades de vivienda",
+        "unit": "unidades",
+        "moe": true,
+        "table": "B25001",
+        "field": "B25001_001E",
+        "marginField": "B25001_001M",
+        "line": "001"
+      },
+      {
+        "id": "occupied_housing",
+        "label": "Viviendas ocupadas",
+        "unit": "unidades",
+        "moe": true,
+        "table": "B25002",
+        "field": "B25002_002E",
+        "marginField": "B25002_002M",
+        "line": "002"
+      },
+      {
+        "id": "vacant_housing",
+        "label": "Viviendas vacantes",
+        "unit": "unidades",
+        "moe": true,
+        "table": "B25002",
+        "field": "B25002_003E",
+        "marginField": "B25002_003M",
+        "line": "003"
+      },
+      {
+        "id": "owner_occupied",
+        "label": "Viviendas ocupadas por dueños",
+        "unit": "unidades",
+        "moe": true,
+        "table": "B25003",
+        "field": "B25003_002E",
+        "marginField": "B25003_002M",
+        "line": "002"
+      },
+      {
+        "id": "renter_occupied",
+        "label": "Viviendas ocupadas por inquilinos",
+        "unit": "unidades",
+        "moe": true,
+        "table": "B25003",
+        "field": "B25003_003E",
+        "marginField": "B25003_003M",
+        "line": "003"
+      },
+      {
+        "id": "median_rent",
+        "label": "Mediana de alquiler bruto mensual",
+        "unit": "USD",
+        "moe": true,
+        "table": "B25064",
+        "field": "B25064_001E",
+        "marginField": "B25064_001M",
+        "line": "001"
+      },
+      {
+        "id": "household_income",
+        "label": "Mediana del ingreso del hogar",
+        "unit": "USD",
+        "moe": true,
+        "table": "B19013",
+        "field": "B19013_001E",
+        "marginField": "B19013_001M",
+        "line": "001"
+      },
+      {
+        "id": "per_capita_income",
+        "label": "Ingreso per cápita",
+        "unit": "USD",
+        "moe": true,
+        "table": "B19301",
+        "field": "B19301_001E",
+        "marginField": "B19301_001M",
+        "line": "001"
+      },
+      {
+        "id": "poverty_universe",
+        "label": "Personas con condición de pobreza determinada",
+        "unit": "personas",
+        "moe": true,
+        "table": "B17001",
+        "field": "B17001_001E",
+        "marginField": "B17001_001M",
+        "line": "001"
+      },
+      {
+        "id": "below_poverty",
+        "label": "Personas bajo el umbral de pobreza",
+        "unit": "personas",
+        "moe": true,
+        "table": "B17001",
+        "field": "B17001_002E",
+        "marginField": "B17001_002M",
+        "line": "002"
+      },
+      {
+        "id": "civilian_labor_force",
+        "label": "Fuerza laboral civil",
+        "unit": "personas",
+        "moe": true,
+        "table": "B23025",
+        "field": "B23025_003E",
+        "marginField": "B23025_003M",
+        "line": "003"
+      },
+      {
+        "id": "civilian_employed",
+        "label": "Personas civiles empleadas",
+        "unit": "personas",
+        "moe": true,
+        "table": "B23025",
+        "field": "B23025_004E",
+        "marginField": "B23025_004M",
+        "line": "004"
+      },
+      {
+        "id": "civilian_unemployed",
+        "label": "Personas civiles desempleadas",
+        "unit": "personas",
+        "moe": true,
+        "table": "B23025",
+        "field": "B23025_005E",
+        "marginField": "B23025_005M",
+        "line": "005"
+      },
+      {
+        "id": "education_universe",
+        "label": "Población de 25 años o más",
+        "unit": "personas",
+        "moe": true,
+        "table": "B15003",
+        "field": "B15003_001E",
+        "marginField": "B15003_001M",
+        "line": "001"
+      },
+      {
+        "id": "bachelors",
+        "label": "Personas de 25 años o más cuyo grado mayor es bachillerato",
+        "unit": "personas",
+        "moe": true,
+        "table": "B15003",
+        "field": "B15003_022E",
+        "marginField": "B15003_022M",
+        "line": "022"
+      },
+      {
+        "id": "commute_universe",
+        "label": "Trabajadores de 16 años o más",
+        "unit": "personas",
+        "moe": true,
+        "table": "B08301",
+        "field": "B08301_001E",
+        "marginField": "B08301_001M",
+        "line": "001"
+      },
+      {
+        "id": "public_transport",
+        "label": "Trabajadores que usan transporte colectivo",
+        "unit": "personas",
+        "moe": true,
+        "table": "B08301",
+        "field": "B08301_010E",
+        "marginField": "B08301_010M",
+        "line": "010"
+      },
+      {
+        "id": "work_from_home",
+        "label": "Personas que trabajan desde su hogar",
+        "unit": "personas",
+        "moe": true,
+        "table": "B08301",
+        "field": "B08301_021E",
+        "marginField": "B08301_021M",
+        "line": "021"
+      },
+      {
+        "id": "internet_households",
+        "label": "Hogares con suscripción a internet",
+        "unit": "hogares",
+        "moe": true,
+        "table": "B28002",
+        "field": "B28002_002E",
+        "marginField": "B28002_002M",
+        "line": "002"
+      }
+    ],
+    "title": "Encuesta sobre la Comunidad de Puerto Rico · 1 año"
+  },
+  "dec/sf1": {
+    "id": "dec-sf1",
+    "window": 0,
+    "barrios": true,
+    "fullMunicipios": true,
+    "variables": [
+      {
+        "id": "P001001",
+        "label": "Población total",
+        "unit": "personas",
+        "moe": false,
+        "table": "P1"
+      }
+    ],
+    "title": "Censo decenal · Summary File 1"
+  },
+  "dec/pl": {
+    "id": "dec-pl",
+    "window": 0,
+    "barrios": true,
+    "fullMunicipios": true,
+    "variables": [
+      {
+        "id": "P1_001N",
+        "label": "Población total",
+        "unit": "personas",
+        "moe": false,
+        "table": "P1"
+      },
+      {
+        "id": "H1_001N",
+        "label": "Viviendas totales",
+        "unit": "unidades",
+        "moe": false,
+        "table": "H1"
+      },
+      {
+        "id": "H1_002N",
+        "label": "Viviendas ocupadas",
+        "unit": "unidades",
+        "moe": false,
+        "table": "H1"
+      },
+      {
+        "id": "H1_003N",
+        "label": "Viviendas vacantes",
+        "unit": "unidades",
+        "moe": false,
+        "table": "H1"
+      }
+    ],
+    "title": "Censo decenal · Redistribución electoral",
+    "firstYear": 2020
+  }
+}
