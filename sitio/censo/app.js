@@ -39,7 +39,7 @@ let lastRows = [], lastView = null;
 const json = async path => { const r = await fetch(path); if (!r.ok) throw Error(r.status+' '+path); return r.json(); };
 function nav() {
   const key = location.hash.slice(1) || 'inicio';
-  const active = document.querySelector('[data-nav="'+({inicio:'inicio',explorar:'explorar',mapa:'mapa',catalogo:'catalogo',metodologia:'metodologia'}[key] || 'inicio')+'"]');
+  const active = document.querySelector('[data-nav="'+({inicio:'inicio',explorar:'explorar',mapa:'mapa',comparar:'comparar',catalogo:'catalogo',metodologia:'metodologia'}[key] || 'inicio')+'"]');
   for (const a of document.querySelectorAll('[data-nav]')) a.removeAttribute('aria-current');
   active.setAttribute('aria-current','location');
   $('breadcrumb').textContent = active.textContent.trim();
@@ -383,3 +383,10 @@ Promise.all([local('observations.json'),local('geografias.json'),local('metadato
   $('data-error').hidden=false;
   console.error(error);
 });
+
+/* Comparaciones entre productos y periodos */
+for (const b of document.querySelectorAll('[data-cmp]')) b.addEventListener('click',()=>{
+  for (const x of document.querySelectorAll('[data-cmp]')) { const on=x===b; x.classList.toggle('accent',on); x.classList.toggle('neutral',!on); x.setAttribute('aria-selected',on); }
+  for (const id of ['tabla','mapas','criterios']) $('cmp-pane-'+id).hidden = b.dataset.cmp!==id;
+});
+import('./comparar.js'+new URL(import.meta.url).search).then(m=>m.initComparar()).catch(e=>{console.error(e);$('cmp-table').innerHTML='<p class="notice">No se pudo cargar el módulo de comparaciones.</p>';});

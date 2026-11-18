@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Observatorio Censal de Puerto Rico</title>
 <meta name="description" content="Consulta estadísticas oficiales del Censo de Estados Unidos para Puerto Rico, sus municipios y barrios.">
-<link rel="stylesheet" href="style.css?v=20261117">
-<script type="module" src="app.js?v=20261117"></script>
+<link rel="stylesheet" href="style.css?v=20261118">
+<script type="module" src="app.js?v=20261118"></script>
 </head>
 <body>
 <a class="skip" href="#contenido">Ir al contenido</a>
@@ -18,6 +18,7 @@
     <a href="#inicio" data-nav="inicio"><i data-icon="grid"></i>Resumen</a>
     <a href="#explorar" data-nav="explorar"><i data-icon="chart"></i>Explorar datos</a>
     <a href="#mapa" data-nav="mapa"><i data-icon="map"></i>Mapa interactivo</a>
+    <a href="#comparar" data-nav="comparar"><i data-icon="table"></i>Comparar periodos</a>
     <a href="#catalogo" data-nav="catalogo"><i data-icon="layers"></i>Catálogo de productos</a>
     <a href="#metodologia" data-nav="metodologia"><i data-icon="book"></i>Fuentes y metodología</a>
   </nav>
@@ -72,6 +73,62 @@
         <div id="pagination" class="pagination"></div>
         <div id="data-source" class="source-line"></div>
       </article>
+    </section>
+    <section id="comparar" aria-labelledby="comparar-title">
+      <div class="section-header"><div><h2 id="comparar-title">Comparar productos y periodos</h2><p>Tablas comparativas descargables y mapas por indicador para municipios y barrios. Cada comparación se evalúa con las reglas de comparabilidad del Census Bureau.</p></div></div>
+      <div class="cmp-tabs-main" role="tablist"><button type="button" class="btn accent" data-cmp="tabla" role="tab" aria-selected="true">Tabla comparativa</button><button type="button" class="btn neutral" data-cmp="mapas" role="tab" aria-selected="false">Mapas comparativos</button><button type="button" class="btn neutral" data-cmp="criterios" role="tab" aria-selected="false">Criterios</button></div>
+
+      <div id="cmp-pane-tabla" class="cmp-pane">
+        <div class="panel cmp-controls">
+          <div class="cmp-row">
+            <label>Geografía<select id="cmp-level"><option value="pr">Puerto Rico</option><option value="municipio" selected>Municipios</option><option value="barrio">Barrios y barrios-pueblo</option></select></label>
+            <label id="cmp-parent-label" hidden>Municipio<select id="cmp-parent"></select></label>
+            <label class="check"><input type="checkbox" id="cmp-adjust" checked> Ajustar dólares de la ACS por inflación (R-CPI-U-RS)</label>
+            <span id="cmp-count" class="cmp-count"></span>
+          </div>
+          <div class="cmp-pick"><div><h3>Publicaciones <small>(2 a 6)</small></h3><div id="cmp-pubs" class="picker"></div></div><div><h3>Indicadores <small>(1 a 4)</small></h3><div id="cmp-inds" class="picker inds"></div></div></div>
+        </div>
+        <div id="cmp-coh" class="cmp-coh"></div>
+        <article class="panel table-card">
+          <div class="card-head"><div><h3><i data-icon="table"></i> Tabla comparativa</h3><p id="cmp-tests"></p></div><div class="exports"><label class="search-field"><i data-icon="search"></i><input id="cmp-search" type="search" placeholder="Buscar geografía…" aria-label="Buscar geografía"></label><button id="cmp-dl-csv" class="btn neutral" disabled><i data-icon="download"></i> CSV</button><button id="cmp-dl-xlsx" class="btn accent" disabled><i data-icon="download"></i> Excel</button></div></div>
+          <div id="cmp-tabs" class="cmp-indtabs"></div>
+          <div id="cmp-table"></div>
+          <div class="source-line">Los cambios se calculan entre periodos consecutivos y del primero al último. Diferencia significativa: |Z| &gt; 1.645 (90 %), con error estándar = margen / 1.645. Pasa el cursor sobre una celda para ver la prueba. El Excel incluye los valores, los cambios, la evaluación de coherencia y los criterios con sus fuentes.</div>
+        </article>
+      </div>
+
+      <div id="cmp-pane-mapas" class="cmp-pane" hidden>
+        <div class="panel cmp-controls">
+          <div class="cmp-row">
+            <label>Geografía<select id="map-level"><option value="municipio" selected>Municipios</option><option value="barrio">Barrios y barrios-pueblo</option></select></label>
+            <label id="map-parent-label" hidden>Municipio<select id="map-parent"></select></label>
+            <label class="grow">Indicador<select id="map-ind"></select></label>
+            <label>Clases<select id="map-breaks"><option value="quantile">Cuantiles comunes</option><option value="equal">Intervalos iguales</option></select></label>
+            <label class="check"><input type="checkbox" id="map-change" checked> Mapa de cambio</label>
+            <span id="map-count" class="cmp-count"></span>
+          </div>
+          <div class="cmp-pick one"><div><h3>Periodos <small>(municipios: hasta 4 · barrios: hasta 2)</small></h3><div id="map-pubs" class="picker"></div></div></div>
+        </div>
+        <div id="map-coh" class="cmp-coh"></div>
+        <article class="panel">
+          <div class="card-head"><div><h3><i data-icon="map"></i> Mapas</h3><p>Los recuentos se mapean como densidades o tasas; los colores usan cortes comunes a todos los paneles.</p></div><div class="exports"><button id="map-dl-svg" class="btn neutral" disabled><i data-icon="download"></i> SVG</button><button id="map-dl-png" class="btn accent" disabled><i data-icon="download"></i> PNG</button></div></div>
+          <div id="map-panels" class="cmp-maps"></div>
+          <div id="map-legend2" class="cmp-legend"></div>
+          <p id="map-note" class="map-source"></p>
+        </article>
+      </div>
+
+      <div id="cmp-pane-criterios" class="cmp-pane" hidden>
+        <article class="panel cmp-criteria-card">
+          <h3>¿Cuántas comparaciones son adecuadas?</h3>
+          <div class="crit-grid">
+            <div><h4>Tablas</h4><ul><li><b>De 2 a 6 publicaciones.</b> Seis cubre una edición completa de estimados de población (2020–2025) o los censos de 1970 a 2020; más columnas vuelven ilegible la tabla.</li><li><b>De 1 a 4 indicadores.</b> Cada indicador añade sus propias pruebas; cuatro mantiene la tabla legible y el número de pruebas acotado.</li><li><b>Cambios entre periodos consecutivos y del primero al último</b>, no todos contra todos: con 6 periodos son 6 diferencias por indicador en lugar de 15, lo que reduce los falsos positivos (al 90 %, uno de cada diez cambios nulos puede salir significativo por azar).</li><li>En la ACS de 5 años, como solo se comparan periodos que no se solapan, caben a lo sumo 4 (2005–2009, 2010–2014, 2015–2019 y 2020–2024).</li></ul></div>
+            <div><h4>Mapas</h4><ul><li><b>Un indicador por mapa</b>: un mapa, un mensaje.</li><li><b>Municipios: hasta 4 periodos y un mapa de cambio</b> (5 paneles). Con 78 unidades, cuatro paneles con la misma leyenda siguen siendo comparables a simple vista.</li><li><b>Barrios: hasta 2 periodos y un mapa de cambio</b> (3 paneles). Con unos 900 barrios, márgenes de error amplios y cambios de límites, más paneles inducen comparaciones engañosas.</li><li><b>Cortes comunes</b> (cuantiles combinados, 5 clases) para que cada color signifique lo mismo en todos los paneles; las leyendas coincidentes mejoran en cerca de 28 % la precisión al comparar mapas en serie (Brewer y Pickle, 2002).</li><li>Los recuentos se mapean como <b>tasas o densidades</b>; los cambios no significativos y las áreas con límites distintos se muestran en gris.</li></ul></div>
+          </div>
+          <h3 style="margin-top:16px">Reglas de coherencia aplicadas</h3>
+          <ul id="cmp-criteria" class="crit-list"></ul>
+        </article>
+      </div>
     </section>
     <section id="catalogo" aria-labelledby="catalogo-title">
       <div class="section-header"><div><h2 id="catalogo-title">Catálogo de productos</h2><p>Busca series, archivos históricos, programas y documentación oficial.</p></div></div>
