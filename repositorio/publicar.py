@@ -51,11 +51,14 @@ def main():
         print("La exportación no contiene la población de Puerto Rico: no se publica.", file=sys.stderr)
         return 2
 
-    texto = json.dumps(nuevo, ensure_ascii=False, separators=(",", ":"))
-    (sitio / "observations.json").write_text(texto, encoding="utf-8")
-    manifiesto = exportacion / "manifest.json"
-    if manifiesto.exists():
-        (sitio / "manifest.json").write_text(manifiesto.read_text(encoding="utf-8"), encoding="utf-8")
+    # Las cifras solo se reescriben cuando hay publicaciones nuevas o cambiadas (o en la primera carga);
+    # así una revisión sin novedades no cambia la fecha de consulta de cada publicación.
+    if nuevas or cambiadas or not previo["datasets"]:
+        texto = json.dumps(nuevo, ensure_ascii=False, separators=(",", ":"))
+        (sitio / "observations.json").write_text(texto, encoding="utf-8")
+        manifiesto = exportacion / "manifest.json"
+        if manifiesto.exists():
+            (sitio / "manifest.json").write_text(manifiesto.read_text(encoding="utf-8"), encoding="utf-8")
     estado = {
         "revisado": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "publicaciones": len(nuevo["datasets"]),

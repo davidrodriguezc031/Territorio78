@@ -23,9 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -52,7 +52,7 @@ jobs:
         id: publicar
         run: |
           python repositorio/publicar.py exportacion sitio/censo/data | tee publicar.txt
-          if git diff --quiet -- sitio/censo/data/observations.json; then
+          if grep -q "nuevas=0 cambiadas=0" publicar.txt; then
             echo "datos=sin_cambios" >> "$GITHUB_OUTPUT"
           else
             echo "datos=cambiados" >> "$GITHUB_OUTPUT"
@@ -71,7 +71,7 @@ jobs:
           else
             git checkout -- repositorio/observatorio.sqlite 2>/dev/null || true
           fi
-          git add sitio/censo/data/observations.json sitio/censo/data/manifest.json sitio/censo/data/estado.json
+          git add sitio/censo/data/
           if git diff --cached --quiet; then
             echo "Sin cambios que guardar."
             exit 0
@@ -88,6 +88,7 @@ jobs:
             echo ""
             echo "- Datos: ${{ steps.publicar.outputs.datos || 'no publicados' }}"
             echo "- Código de actualizar.py: ${{ steps.censo.outputs.codigo }}"
-            [ -f publicar.txt ] && sed 's/^/- /' publicar.txt
-            [ -s pendientes.txt ] && { echo ""; echo "Pendientes:"; sed 's/^/    /' pendientes.txt; }
+            if [ -f publicar.txt ]; then sed 's/^/- /' publicar.txt; fi
+            if [ -s pendientes.txt ]; then echo ""; echo "Pendientes:"; sed 's/^/    /' pendientes.txt; fi
           } >> "$GITHUB_STEP_SUMMARY"
+          true
