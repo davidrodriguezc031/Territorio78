@@ -105,6 +105,7 @@ def survival(lt, sex):
         T = lambda a: sum(v for k, v in L.items() if k >= a)  # noqa: E731
         S = [L5[x + 5] / L5[x] for x in range(0, 80, 5)]  # 0–4→5–9 … 75–79→80–84 (16 relaciones)
         S.append(T(85) / T(80))  # 80+ → 85+
+        S.append(L5[0] / (5 * 100000))  # fracción de los nacidos en el periodo que sigue viva al final (raíz l0 = 100,000)
         per_year.append(S)
     if not per_year:
         raise SystemExit(f"Tabla de vida sin datos para {sex}.")
@@ -155,7 +156,7 @@ def main():
     # 2) Población por edad y sexo por municipio
     ag = rows(ag_raw)
     lt = life_table(refresh)
-    S = {"m": survival(lt, "Male"), "f": survival(lt, "Female")}
+    S0 = {"m": survival(lt, "Male"), "f": survival(lt, "Female")}
     munis = {}
     for r in ag:
         yc = int(r["YEAR"])
@@ -169,6 +170,27 @@ def main():
             "gh": [int(r[f"{k}_MALE"]) for k in GRUPOS], "gm": [int(r[f"{k}_FEM"]) for k in GRUPOS]}
     t1, t2 = 2020, v
     span = t2 - t1
+    idx = {y: i for i, y in enumerate(years)}
+    # Calibración: las relaciones de la ONU implican más defunciones que las registradas por el PEP (Registro Demográfico).
+    # Se ajustan proporcionalmente las probabilidades de morir, 1 − S(x), con un factor k común a todas las edades y sexos,
+    # para que las defunciones esperadas del periodo igualen las defunciones oficiales del PEP.
+    def esperadas(Sx, k=1.0):
+        tot_d = 0.0
+        for sx, key in (("m", "gh"), ("f", "gm")):
+            p = [sum(d["anios"][t1][key][i] for d in munis.values()) for i in range(18)]
+            q = [k * (1 - Sx[sx][i]) for i in range(17)]
+            tot_d += sum(p[i] * q[i] for i in range(16)) + (p[16] + p[17]) * q[16]
+        return tot_d
+    nac = sum(comp["nacimientos"][idx[y]] for y in range(t1 + 1, t2 + 1))
+    defs = sum(comp["defunciones"][idx[y]] for y in range(t1 + 1, t2 + 1))
+    def_nacidos = nac * (1 - (S0["m"][17] + S0["f"][17]) / 2)
+    d_onu = esperadas(S0)
+    k = (defs - def_nacidos) / d_onu if span == 5 else 1.0
+    S = {sx: [1 - k * (1 - S0[sx][i]) for i in range(17)] for sx in S0}
+    calibracion = {"defunciones_esperadas_onu": round(d_onu), "defunciones_pep": defs,
+                   "defunciones_estimadas_de_nacidos_en_el_periodo": round(def_nacidos),
+                   "factor_k": round(k, 5),
+                   "nota": "S_ajustada(x) = 1 − k · (1 − S_ONU(x)); k = (defunciones PEP − defunciones de los nacidos en el periodo) / defunciones esperadas con la tabla de la ONU."}
     tot = {"nm": 0.0, "nm_h": 0.0, "nm_m": 0.0, "edad": [0.0] * 17}
     for geo, d in munis.items():
         a, b = d["anios"][t1], d["anios"][t2]
@@ -194,7 +216,6 @@ def main():
         d["crecimiento"]["anios_mitad_o_doble"] = round(math.log(2) / abs(r), 1) if r else None
 
     # 3) Validación: suma municipal frente a la migración neta oficial del PEP para Puerto Rico
-    idx = {y: i for i, y in enumerate(years)}
     oficial = sum(comp["migracion_neta"][idx[y]] for y in range(t1 + 1, t2 + 1))
     val = {"periodo": f"1 jul. {t1} – 1 jul. {t2}", "suma_municipios_5_mas": round(tot["nm"]),
            "hombres": round(tot["nm_h"]), "mujeres": round(tot["nm_m"]),
@@ -208,7 +229,9 @@ def main():
            "grupos_edad": ETIQ,
            "fuentes": {"componentes": st_url, "edad_sexo": ag_url, "tabla_vida": WPP_URL,
                        "tabla_vida_anios": list(LT_YEARS)},
-           "supervivencia": {"hombres": [round(x, 5) for x in S["m"]], "mujeres": [round(x, 5) for x in S["f"]]},
+           "supervivencia": {"hombres": [round(x, 5) for x in S["m"]], "mujeres": [round(x, 5) for x in S["f"]],
+                             "onu_hombres": [round(x, 5) for x in S0["m"][:17]], "onu_mujeres": [round(x, 5) for x in S0["f"][:17]],
+                             "calibracion": calibracion},
            "pr": comp, "validacion": val, "municipios": munis}
     # Solo se reescribe cuando cambian los datos (no por la fecha de generación).
     try:
