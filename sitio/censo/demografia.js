@@ -12,7 +12,8 @@ const collator = new Intl.Collator('es-PR', {sensitivity:'base'});
 const getJSON = async p => { const r = await fetch('./data/' + p + qs); if (!r.ok) throw Error(r.status + ' ' + p); return r.json(); };
 
 let D = null, GJ = null, EXT = null;
-const st = {tab:'componentes', muni:'72127', ind:'dep_vejez', anio:'', ordenM:'tasa', ordenE:'valor'};
+let S = null;
+const st = {sel:[], selLabel:'', tab:'componentes', muni:'72127', ind:'dep_vejez', anio:'', ordenM:'tasa', ordenE:'valor'};
 const SEQ = ['#d5eee5','#a5dccd','#65c0aa','#289d88','#146857'];
 const DIV = ['#8c510a','#d8b365','#f6e8c3','#c7eae5','#5ab4ac','#01665e'];
 const C = {nac:'#2a9d8f', def:'#b5651d', mig:'#3d6fb0', tot:'#173239'};
@@ -35,24 +36,41 @@ function paths() {
   if (GJ._d) return GJ._d;
   let l = Infinity, r = -Infinity, b = Infinity, t = -Infinity;
   for (const f of GJ.features) for (const ring of rings(f)) for (const [x, y] of ring) { l = Math.min(l, x); r = Math.max(r, x); b = Math.min(b, y); t = Math.max(t, y); }
-  EXT = {W:(r - l) * KX, H:(t - b) * 100};
+  EXT = {W:(r - l) * KX, H:(t - b) * 100, l, t};
   GJ._d = GJ.features.map(f => [f.properties.geoid, rings(f).map(rg => rg.map(([x, y], i) => (i ? 'L' : 'M') + ((x - l) * KX).toFixed(2) + ' ' + ((t - y) * 100).toFixed(2)).join('') + 'Z').join('')]);
   return GJ._d;
 }
 const classOf = (v, br) => { let i = 0; while (i < br.length && v > br[i]) i++; return i; };
 function mapa(values, br, colors, tip, aria) {
-  const P = paths();
-  const sb = 20 / (111.32 * Math.cos(18.2 * Math.PI / 180)) * KX;
-  return '<svg class="cmp-map" viewBox="-4 -4 ' + (EXT.W + 8) + ' ' + (EXT.H + 30) + '" role="img" aria-label="' + esc(aria) + '"><g class="geo">' +
-    P.map(([g, d]) => { const v = values.get(g); const fill = Number.isFinite(v) ? colors[classOf(v, br)] : '#eeeeee'; return '<path d="' + d + '" fill="' + fill + '" data-geo="' + g + '" fill-rule="evenodd"><title>' + esc(tip(g, v)) + '</title></path>'; }).join('') +
-    '</g><g class="sb" transform="translate(' + (EXT.W - sb - 2) + ',' + (EXT.H + 10) + ')"><path d="M0 0H' + sb.toFixed(2) + 'M0 -2V2M' + sb.toFixed(2) + ' -2V2" stroke="#425f62" stroke-width="1" fill="none"/><text x="' + (sb / 2).toFixed(2) + '" y="9" text-anchor="middle">20 km</text></g></svg>';
+  const P = paths(), sel = st.sel;
+  const caja = sel.length && S ? S.cajaSeleccion(GJ, sel, EXT) : null;
+  const vb = caja || {x:-4, y:-4, w:EXT.W + 8, h:EXT.H + 8};
+  const fs = vb.w * 0.034, bot = fs * 3.2;
+  const sc = S ? S.escala(vb.w) : {km:20, len:20 / (111.32 * Math.cos(18.2 * Math.PI / 180)) * KX};
+  const sx = vb.x + vb.w - sc.len - fs * .3, sy = vb.y + vb.h + fs * 1.2;
+  return '<svg class="cmp-map" viewBox="' + vb.x.toFixed(2) + ' ' + vb.y.toFixed(2) + ' ' + vb.w.toFixed(2) + ' ' + (vb.h + bot).toFixed(2) + '" role="img" aria-label="' + esc(aria) + '"><g class="geo">' +
+    P.map(([g, d]) => {
+      if (sel.length && !sel.includes(g)) return caja ? '<path d="' + d + '" class="ctx" fill="#eef1f0"><title>' + esc(D.municipios[g]?.nombre) + ' (fuera de la selección)</title></path>' : '';
+      const v = values.get(g); const fill = Number.isFinite(v) ? colors[classOf(v, br)] : '#eeeeee'; return '<path d="' + d + '" fill="' + fill + '" data-geo="' + g + '" fill-rule="evenodd"><title>' + esc(tip(g, v)) + '</title></path>';
+    }).join('') +
+    '</g><rect x="' + vb.x.toFixed(2) + '" y="' + (vb.y + vb.h).toFixed(2) + '" width="' + vb.w.toFixed(2) + '" height="' + bot.toFixed(2) + '" fill="#ffffff"/><g class="sb"><path d="M' + sx.toFixed(2) + ' ' + sy.toFixed(2) + 'H' + (sx + sc.len).toFixed(2) + 'M' + sx.toFixed(2) + ' ' + (sy - fs * .3).toFixed(2) + 'V' + (sy + fs * .3).toFixed(2) + 'M' + (sx + sc.len).toFixed(2) + ' ' + (sy - fs * .3).toFixed(2) + 'V' + (sy + fs * .3).toFixed(2) + '" stroke="#425f62" stroke-width="' + (fs * .14).toFixed(2) + '" fill="none"/><text x="' + (sx + sc.len / 2).toFixed(2) + '" y="' + (sy + fs * 1.25).toFixed(2) + '" text-anchor="middle" style="font-size:' + (fs * .72).toFixed(2) + 'px">' + sc.km + ' km</text></g></svg>';
 }
 function leyenda(title, br, colors, fmt) {
   const items = colors.slice(0, br.length + 1).map((c, i) => [c, i === 0 ? 'hasta ' + fmt(br[0]) : i === br.length ? 'más de ' + fmt(br[br.length - 1]) : fmt(br[i - 1]) + ' a ' + fmt(br[i])]);
   return '<div class="lg"><strong>' + esc(title) + '</strong>' + items.map(([c, t]) => '<span><b class="swatch" style="background:' + c + '"></b>' + esc(t) + '</span>').join('') + '</div>';
 }
 function cuantiles(vals, k) { const s = vals.filter(Number.isFinite).sort((a, b) => a - b); const o = []; for (let i = 1; i < k; i++) { const p = (s.length - 1) * i / k, lo = Math.floor(p); o.push(+(s[lo] + (s[Math.ceil(p)] - s[lo]) * (p - lo)).toPrecision(4)); } return [...new Set(o)]; }
-const munis = () => Object.entries(D.municipios).sort((a, b) => collator.compare(a[1].nombre, b[1].nombre));
+const munis = (todos) => Object.entries(D.municipios).filter(([g]) => todos || !st.sel.length || st.sel.includes(g)).sort((a, b) => collator.compare(a[1].nombre, b[1].nombre));
+const hayGrupo = () => st.sel.length >= 2;
+const nombreGrupo = () => 'Selección: ' + st.selLabel;
+/* Agregado de la selección: suma de los municipios (recuentos); las tasas e índices se recalculan con las sumas. */
+function grupoMig() {
+  const ids = st.sel, y2 = String(D.vintage); let nm = 0, h = 0, m = 0, a = 0, b = 0; const edad = Array(17).fill(0);
+  for (const g of ids) { const x = D.municipios[g]; nm += x.migracion.neta; h += x.migracion.hombres; m += x.migracion.mujeres; a += x.anios['2020'].pob; b += x.anios[y2].pob; x.migracion.por_edad.forEach((v, i) => edad[i] += v); }
+  return {nombre:nombreGrupo(), a:{pob:a}, b:{pob:b}, migracion:{neta:nm, hombres:h, mujeres:m, por_edad:edad, periodo:D.municipios[ids[0]].migracion.periodo, tasa_anual_por_mil:1000 * nm / ((D.vintage - 2020) * (a + b) / 2)}};
+}
+function sumaGrupos(list) { const t = {gh:Array(18).fill(0), gm:Array(18).fill(0), h:0, m:0, pob:0}; for (const a of list) { a.gh.forEach((v, i) => t.gh[i] += v); a.gm.forEach((v, i) => t.gm[i] += v); t.h += a.h; t.m += a.m; t.pob += a.pob; } return t; }
+function indicesDe(t) { const g = t.gh.map((v, i) => v + t.gm[i]); const j = g[0] + g[1] + g[2], ad = g.slice(3, 13).reduce((p, q) => p + q, 0), my = g.slice(13).reduce((p, q) => p + q, 0); return {dep_total:100 * (j + my) / ad, dep_juvenil:100 * j / ad, dep_vejez:100 * my / ad, envejecimiento:100 * my / j, masculinidad:100 * t.h / t.m, pct_65:100 * my / t.pob, pct_0_14:100 * j / t.pob}; }
 
 /* ---------- 1. Componentes del cambio (Puerto Rico) ---------- */
 function renderComponentes() {
@@ -106,15 +124,16 @@ function renderMigracion() {
   const list = munis().map(([g, m]) => ({g, ...m, a:m.anios['2020'], b:m.anios[String(D.vintage)]}));
   const key = {tasa:x => x.migracion.tasa_anual_por_mil, neta:x => x.migracion.neta, nombre:null}[st.ordenM];
   if (key) list.sort((p, q) => key(p) - key(q));
+  const gr = hayGrupo() ? [{g:'SEL', ...grupoMig()}] : [];
   $('dm-mig-table').innerHTML = '<div class="table-scroll tall"><table class="cmp"><thead><tr><th>Municipio</th><th>Población 2020</th><th>Población ' + D.vintage + '</th><th>Cambio</th><th>Migración neta (5+)</th><th>Hombres</th><th>Mujeres</th><th>Tasa anual ‰</th></tr></thead><tbody>' +
-    list.map(x => '<tr data-geo="' + x.g + '"' + (x.g === st.muni ? ' class="sel"' : '') + '><td><button type="button" class="linkish" data-geo="' + x.g + '">' + esc(x.nombre) + '</button></td><td>' + nf0.format(x.a.pob) + '</td><td>' + nf0.format(x.b.pob) + '</td><td>' + sg(x.b.pob - x.a.pob) + '</td><td>' + sg(x.migracion.neta) + '</td><td>' + sg(x.migracion.hombres) + '</td><td>' + sg(x.migracion.mujeres) + '</td><td class="' + (x.migracion.tasa_anual_por_mil < 0 ? 'neg' : 'pos') + '">' + sg(x.migracion.tasa_anual_por_mil, nf1) + '</td></tr>').join('') + '</tbody></table></div>';
+    gr.concat(list).map(x => '<tr data-geo="' + x.g + '"' + (x.g === st.muni ? ' class="sel"' : '') + '><td><button type="button" class="linkish' + (x.g === 'SEL' ? ' grp' : '') + '" data-geo="' + x.g + '">' + esc(x.nombre) + '</button></td><td>' + nf0.format(x.a.pob) + '</td><td>' + nf0.format(x.b.pob) + '</td><td>' + sg(x.b.pob - x.a.pob) + '</td><td>' + sg(x.migracion.neta) + '</td><td>' + sg(x.migracion.hombres) + '</td><td>' + sg(x.migracion.mujeres) + '</td><td class="' + (x.migracion.tasa_anual_por_mil < 0 ? 'neg' : 'pos') + '">' + sg(x.migracion.tasa_anual_por_mil, nf1) + '</td></tr>').join('') + '</tbody></table></div>';
   renderPerfil();
   const v = D.validacion, c = D.supervivencia.calibracion;
   $('dm-mig-val').innerHTML = '<strong>Validación con la cifra oficial.</strong> La suma de los 78 municipios da ' + sg(v.suma_municipios_5_mas) + ' personas de 5 años o más (' + sg(v.hombres) + ' hombres, ' + sg(v.mujeres) + ' mujeres). La migración neta oficial del PEP para Puerto Rico en el mismo periodo es ' + sg(v.pep_migracion_neta_oficial) + ' para todas las edades; la estimación municipal cubre el ' + nf0.format(100 * v.suma_municipios_5_mas / v.pep_migracion_neta_oficial) + ' % (la diferencia corresponde sobre todo a migrantes menores de 5 años, que este método no capta). ' +
     '<br><strong>Calibración de la mortalidad.</strong> Con la tabla de vida de la ONU se esperarían ' + nf0.format(c.defunciones_esperadas_onu) + ' defunciones; el PEP registra ' + nf0.format(c.defunciones_pep) + ' (de ellas, unas ' + nf0.format(c.defunciones_estimadas_de_nacidos_en_el_periodo) + ' de nacidos durante el periodo). Las probabilidades de morir se ajustaron con un factor k = ' + nf2.format(c.factor_k) + ' para que coincidan.';
 }
 function renderPerfil() {
-  const m = D.municipios[st.muni]; if (!m) return;
+  const m = st.muni === 'SEL' && hayGrupo() ? grupoMig() : D.municipios[st.muni]; if (!m) return;
   $('dm-mig-muni').value = st.muni;
   const e = m.migracion.por_edad, ages = D.grupos_edad.slice(1);
   const mx = Math.max(...e.map(Math.abs), 1), W = 520, rowH = 17, L = 52, mid = L + (W - L - 10) / 2, half = (W - L - 20) / 2;
@@ -133,7 +152,7 @@ function renderPerfil() {
 function indVal(m, y, ind) { const a = m.anios[y]; return ind === 'edad_mediana' ? a.edad_mediana : a.ind[ind]; }
 function renderEstructura() {
   const y = st.anio || String(D.vintage), ind = st.ind, I = INDICES[ind];
-  const all = []; for (const m of Object.values(D.municipios)) for (const yy of Object.keys(m.anios)) all.push(indVal(m, yy, ind));
+  const all = []; for (const [, m] of munis()) for (const yy of Object.keys(m.anios)) all.push(indVal(m, yy, ind));
   const br = cuantiles(all, 5); // cortes comunes a todos los años (2020–2025)
   const vals = new Map(Object.entries(D.municipios).map(([g, m]) => [g, indVal(m, y, ind)]));
   $('dm-est-map').innerHTML = mapa(vals, br, SEQ, (g, v) => D.municipios[g]?.nombre + ': ' + (Number.isFinite(v) ? nf1.format(v) : 'sin dato'), I.label + ' ' + y);
@@ -142,18 +161,17 @@ function renderEstructura() {
   if (st.ordenE === 'valor') list.sort((p, q) => q.b - p.b);
   const pr = prIndice(ind, y), pr0 = prIndice(ind, '2020');
   $('dm-est-table').innerHTML = '<div class="table-scroll tall"><table class="cmp"><thead><tr><th>Municipio</th><th>2020</th><th>' + y + '</th><th>Cambio</th></tr></thead><tbody><tr class="pr"><td><strong>Puerto Rico</strong>' + (ind === 'edad_mediana' ? ' <small>(aprox., interpolada en grupos de 5 años)</small>' : '') + '</td><td>' + nf1.format(pr0) + '</td><td>' + nf1.format(pr) + '</td><td>' + sg(pr - pr0, nf1) + '</td></tr>' +
+    (hayGrupo() ? (() => { const a = prIndice(ind, '2020', st.sel), b = prIndice(ind, y, st.sel); return '<tr class="selrow" data-geo="SEL"><td><button type="button" class="linkish grp" data-geo="SEL">' + esc(nombreGrupo()) + '</button>' + (ind === 'edad_mediana' ? ' <small>(aprox.)</small>' : '') + '</td><td>' + nf1.format(a) + '</td><td>' + nf1.format(b) + '</td><td>' + sg(b - a, nf1) + '</td></tr>'; })() : '') +
     list.map(x => '<tr data-geo="' + x.g + '"' + (x.g === st.muni ? ' class="sel"' : '') + '><td><button type="button" class="linkish" data-geo="' + x.g + '">' + esc(x.n) + '</button></td><td>' + nf1.format(x.a) + '</td><td>' + nf1.format(x.b) + '</td><td>' + sg(x.b - x.a, nf1) + '</td></tr>').join('') + '</tbody></table></div>';
   renderPiramide();
 }
-function prTot(y) { const t = {gh:Array(18).fill(0), gm:Array(18).fill(0), h:0, m:0, pob:0}; for (const m of Object.values(D.municipios)) { const a = m.anios[y]; a.gh.forEach((v, i) => t.gh[i] += v); a.gm.forEach((v, i) => t.gm[i] += v); t.h += a.h; t.m += a.m; t.pob += a.pob; } return t; }
-function prIndice(ind, y) {
+function prTot(y, ids) { return sumaGrupos((ids || Object.keys(D.municipios)).map(g => D.municipios[g].anios[y])); }
+function prIndice(ind, y, ids) {
   if (ind === 'edad_mediana') { // mediana interpolada en grupos de 5 años
-    const t = prTot(y), g = t.gh.map((v, i) => v + t.gm[i]), half = t.pob / 2; let acc = 0;
+    const t = prTot(y, ids), g = t.gh.map((v, i) => v + t.gm[i]), half = t.pob / 2; let acc = 0;
     for (let i = 0; i < 18; i++) { if (acc + g[i] >= half) return i * 5 + 5 * (half - acc) / g[i]; acc += g[i]; }
   }
-  const t = prTot(y), g = t.gh.map((v, i) => v + t.gm[i]);
-  const j = g[0] + g[1] + g[2], ad = g.slice(3, 13).reduce((a, b) => a + b, 0), my = g.slice(13).reduce((a, b) => a + b, 0);
-  return {dep_total:100 * (j + my) / ad, dep_juvenil:100 * j / ad, dep_vejez:100 * my / ad, envejecimiento:100 * my / j, masculinidad:100 * t.h / t.m, pct_65:100 * my / t.pob, pct_0_14:100 * j / t.pob}[ind];
+  return indicesDe(prTot(y, ids))[ind];
 }
 function piramideSVG(A, B, yA, yB, nombre, nota) {
   const pa = A.h + A.m, pb = B.h + B.m;
@@ -173,8 +191,9 @@ function piramideSVG(A, B, yA, yB, nombre, nota) {
     '<p class="map-source">Barras: ' + yB + ' (% de la población total). Contorno: ' + yA + '. ' + nota + '</p>';
 }
 function renderPiramide() {
-  const m = st.muni === '72' ? null : D.municipios[st.muni];
   const y = st.anio || String(D.vintage);
+  if (st.muni === 'SEL' && hayGrupo()) { $('dm-piramide').innerHTML = piramideSVG(prTot('2020', st.sel), prTot(y, st.sel), '2020', y, nombreGrupo(), 'Suma de los municipios seleccionados. Fuente: U.S. Census Bureau, PEP V' + D.vintage + '.'); return; }
+  const m = st.muni === '72' || st.muni === 'SEL' ? null : D.municipios[st.muni];
   $('dm-piramide').innerHTML = piramideSVG(m ? m.anios['2020'] : prTot('2020'), m ? m.anios[y] : prTot(y), '2020', y, m ? m.nombre : 'Puerto Rico', 'Fuente: U.S. Census Bureau, PEP V' + D.vintage + ', población por edad y sexo.');
 }
 
@@ -225,12 +244,14 @@ function renderProyeccion() {
   const list = munis().map(([g2, m]) => ({g:g2, n:m.nombre, b:m.anios[String(base.anio)].pob, p:m.proy, at:atipico(m)})).sort((p, q) => pctc(p.b, p.p[esc0][y].pob) - pctc(q.b, q.p[esc0][y].pob));
   $('dm-p-table').innerHTML = '<div class="table-scroll tall"><table class="cmp"><thead><tr><th>Municipio</th><th>' + base.anio + '</th>' + ys.map(yy => '<th>' + yy + '</th>').join('') + '<th>Cambio ' + base.anio + '–' + y + '</th><th>65+ en ' + y + '</th><th>Dependencia de vejez ' + y + '</th></tr></thead><tbody>' +
     '<tr class="pr"><td><strong>Puerto Rico</strong></td><td>' + nf0.format(base.pob) + '</td>' + ys.map(yy => '<td>' + nf0.format(P[esc0][yy].pob) + '</td>').join('') + '<td>' + sg(pctc(base.pob, P[esc0][y].pob), nf1) + ' %</td><td>' + nf1.format(P[esc0][y].ind.pct_65) + ' %</td><td>' + nf1.format(P[esc0][y].ind.dep_vejez) + '</td></tr>' +
+    (hayGrupo() ? (() => { const b0 = prTot(String(base.anio), st.sel).pob, z = ys.map(yy => sumaGrupos(st.sel.map(g => D.municipios[g].proy[esc0][yy]))), zy = sumaGrupos(st.sel.map(g => D.municipios[g].proy[esc0][y])), iy = indicesDe(zy); return '<tr class="selrow" data-geo="SEL"><td><button type="button" class="linkish grp" data-geo="SEL">' + esc(nombreGrupo()) + '</button></td><td>' + nf0.format(b0) + '</td>' + z.map(q => '<td>' + nf0.format(q.pob) + '</td>').join('') + '<td>' + sg(pctc(b0, zy.pob), nf1) + ' %</td><td>' + nf1.format(iy.pct_65) + ' %</td><td>' + nf1.format(iy.dep_vejez) + '</td></tr>'; })() : '') +
     list.map(x => '<tr data-geo="' + x.g + '"' + (x.g === st.muni ? ' class="sel"' : '') + '><td><button type="button" class="linkish" data-geo="' + x.g + '">' + esc(x.n) + '</button>' + (x.at ? ' <span class="flag" title="Migración 2020–2025 de ±10 por mil o más al año: la tendencia puede no repetirse">base atípica</span>' : '') + '</td><td>' + nf0.format(x.b) + '</td>' + ys.map(yy => '<td>' + nf0.format(x.p[esc0][yy].pob) + '</td>').join('') + '<td class="' + (x.p[esc0][y].pob < x.b ? 'neg' : 'pos') + '">' + sg(pctc(x.b, x.p[esc0][y].pob), nf1) + ' %</td><td>' + nf1.format(x.p[esc0][y].ind.pct_65) + ' %</td><td>' + nf1.format(x.p[esc0][y].ind.dep_vejez) + '</td></tr>').join('') + '</tbody></table></div>';
   renderPiramideP();
 }
 function renderPiramideP() {
   const P = D.proyeccion_pr, esc0 = st.esc || 'tendencia', y = st.pa || Object.keys(P.tendencia).sort().at(-1), b = String(P.base.anio);
-  const m = st.muni === '72' ? null : D.municipios[st.muni];
+  if (st.muni === 'SEL' && hayGrupo()) { $('dm-p-muni').value = 'SEL'; $('dm-p-piramide').innerHTML = piramideSVG(prTot(b, st.sel), sumaGrupos(st.sel.map(g => D.municipios[g].proy[esc0][y])), b, y + ' (proyectado)', nombreGrupo() + ' · ' + ESC[esc0], 'Suma de las proyecciones municipales; no es una cifra oficial.'); return; }
+  const m = st.muni === '72' || st.muni === 'SEL' ? null : D.municipios[st.muni];
   $('dm-p-muni').value = m ? st.muni : '72';
   $('dm-p-piramide').innerHTML = piramideSVG(m ? m.anios[b] : prTot(b), m ? m.proy[esc0][y] : P[esc0][y], b, y + ' (proyectado)', (m ? m.nombre : 'Puerto Rico') + ' · ' + ESC[esc0], 'Proyección del Observatorio; no es una cifra oficial.');
   for (const tr of document.querySelectorAll('#dm-p-table tr[data-geo]')) tr.classList.toggle('sel', tr.dataset.geo === st.muni);
@@ -246,6 +267,7 @@ function renderCrecimiento() {
   const t0 = prTot('2020').pob, t1 = prTot(String(D.vintage)).pob, rpr = 100 * Math.log(t1 / t0) / (D.vintage - 2020);
   const list = munis().map(([g, m]) => ({g, n:m.nombre, r:m.crecimiento.r_anual_pct, t:m.crecimiento.anios_mitad_o_doble, a:m.anios['2020'].pob, b:m.anios[String(D.vintage)].pob})).sort((p, q) => p.r - q.r);
   $('dm-cre-table').innerHTML = '<div class="table-scroll tall"><table class="cmp"><thead><tr><th>Municipio</th><th>Población 2020</th><th>Población ' + D.vintage + '</th><th>r anual (%)</th><th>Años para reducirse a la mitad o duplicarse</th></tr></thead><tbody><tr class="pr"><td><strong>Puerto Rico</strong></td><td>' + nf0.format(t0) + '</td><td>' + nf0.format(t1) + '</td><td>' + sg(rpr, nf2) + '</td><td>' + nf0.format(Math.log(2) / Math.abs(rpr / 100)) + (rpr < 0 ? ' (mitad)' : ' (doble)') + '</td></tr>' +
+    (hayGrupo() ? (() => { const a = prTot('2020', st.sel).pob, b = prTot(String(D.vintage), st.sel).pob, r = 100 * Math.log(b / a) / (D.vintage - 2020); return '<tr class="selrow"><td><strong>' + esc(nombreGrupo()) + '</strong></td><td>' + nf0.format(a) + '</td><td>' + nf0.format(b) + '</td><td>' + sg(r, nf2) + '</td><td>' + (r ? nf0.format(Math.log(2) / Math.abs(r / 100)) + (r < 0 ? ' (mitad)' : ' (doble)') : '—') + '</td></tr>'; })() : '') +
     list.map(x => '<tr><td>' + esc(x.n) + '</td><td>' + nf0.format(x.a) + '</td><td>' + nf0.format(x.b) + '</td><td class="' + (x.r < 0 ? 'neg' : 'pos') + '">' + sg(x.r, nf2) + '</td><td>' + (x.t ? nf0.format(x.t) + (x.r < 0 ? ' (mitad)' : ' (doble)') : '—') + '</td></tr>').join('') + '</tbody></table></div>' +
     '<p class="map-source">Los años para reducirse a la mitad o duplicarse suponen que la tasa del periodo se mantiene constante; es una medida de intensidad, no una proyección.</p>';
 }
@@ -322,7 +344,7 @@ function fijarEstilosSVG(root) {
 function armar(ids) {
   const wrap = document.createElement('div'); wrap.className = 'dm-export';
   const fecha = new Intl.DateTimeFormat('es-PR', {dateStyle:'long'}).format(new Date());
-  wrap.innerHTML = '<header class="dm-ex-head"><div><b>Observatorio Censal de Puerto Rico</b><span>Análisis demográfico · ' + esc(ids.length > 1 ? 'Informe completo' : tabLabel(ids[0])) + '</span></div><small>Territorio 78 · ' + esc(fecha) + '</small></header>';
+  wrap.innerHTML = '<header class="dm-ex-head"><div><b>Observatorio Censal de Puerto Rico</b><span>Análisis demográfico · ' + esc(ids.length > 1 ? 'Informe completo' : tabLabel(ids[0])) + (st.sel.length ? ' · ' + esc(st.selLabel) : '') + '</span></div><small>Territorio 78 · ' + esc(fecha) + '</small></header>';
   for (const id of ids) {
     const pane = $('dm-pane-' + id), sel = seleccion(pane);
     const sec = document.createElement('section'); sec.className = 'dm-ex-sec' + (wrap.querySelector('.dm-ex-sec') ? ' brk' : '');
@@ -357,7 +379,7 @@ async function exportar(tipo, todo) {
   try {
     const actual = PANES.find(id => !$('dm-pane-' + id).hidden) || 'componentes';
     const ids = todo ? PANES : [actual];
-    const nombre = 'Analisis_demografico_PR_' + (todo ? 'informe' : actual) + '_V' + D.vintage;
+    const nombre = 'Analisis_demografico_PR_' + (todo ? 'informe' : actual) + (st.sel.length ? '_seleccion' + st.sel.length : '') + '_V' + D.vintage;
     const {canvas, cortes} = await capturar(ids);
     if (tipo === 'jpeg') {
       await new Promise(ok => canvas.toBlob(b => { guardar(b, nombre + '.jpg'); ok(); }, 'image/jpeg', 0.92));
@@ -398,7 +420,16 @@ export async function initDemografia() {
   try { [D, GJ] = await Promise.all([getJSON('demografia.json'), getJSON('municipios.geojson')]); }
   catch (e) { $('dm-root').innerHTML = '<p class="notice">El análisis demográfico se genera con la actualización diaria; todavía no está disponible.</p>'; return; }
   $('dm-meta').textContent = 'Edición del PEP: V' + D.vintage + ' · tabla de vida ONU WPP 2024 (' + D.fuentes.tabla_vida_anios[0] + '–' + D.fuentes.tabla_vida_anios.at(-1) + ') · calculado el ' + D.generado.slice(0, 10);
-  const opts = munis().map(([g, m]) => '<option value="' + g + '">' + esc(m.nombre) + '</option>').join('');
+  S = await import('./seleccion.js' + qs);
+  const AF = await S.cargarAF(qs);
+  const opts = munis(true).map(([g, m]) => '<option value="' + g + '">' + esc(m.nombre) + '</option>').join('');
+  const opcionesSel = () => { const base = (hayGrupo() ? '<option value="SEL">' + esc(nombreGrupo()) + '</option>' : '') + munis().map(([g, m]) => '<option value="' + g + '">' + esc(m.nombre) + '</option>').join(''); $('dm-mig-muni').innerHTML = base; $('dm-est-muni').innerHTML = '<option value="72">Puerto Rico</option>' + base; if ($('dm-p-muni')) $('dm-p-muni').innerHTML = '<option value="72">Puerto Rico</option>' + base; };
+  S.muniPicker($('dm-sel'), {munis:munis(true).map(([g, m]) => ({geoid:g, name:m.nombre})), areas:AF.areas || {}, onChange:(ids, lab) => {
+    st.sel = ids; st.selLabel = lab;
+    if (hayGrupo()) st.muni = 'SEL'; else if (ids.length === 1) st.muni = ids[0]; else if (st.muni === 'SEL') st.muni = '72127';
+    opcionesSel(); $('dm-est-muni').value = st.muni;
+    renderMigracion(); renderEstructura(); renderCrecimiento(); renderProyeccion();
+  }});
   $('dm-mig-muni').innerHTML = opts;
   $('dm-est-muni').innerHTML = '<option value="72">Puerto Rico</option>' + opts;
   $('dm-est-ind').innerHTML = Object.entries(INDICES).map(([k, v]) => '<option value="' + k + '"' + (k === st.ind ? ' selected' : '') + '>' + esc(v.label) + '</option>').join('');
@@ -411,7 +442,7 @@ export async function initDemografia() {
     for (const x of tabs) { const on = x === b; x.classList.toggle('accent', on); x.classList.toggle('neutral', !on); x.setAttribute('aria-selected', on); }
     for (const id of ['componentes', 'migracion', 'estructura', 'crecimiento', 'proyeccion', 'formulas']) $('dm-pane-' + id).hidden = b.dataset.dm !== id;
   });
-  const pick = e => { const g = e.target.closest('[data-geo]')?.dataset.geo; if (g && D.municipios[g]) { st.muni = g; return true; } };
+  const pick = e => { const g = e.target.closest('[data-geo]')?.dataset.geo; if (g && (D.municipios[g] || g === 'SEL')) { st.muni = g; return true; } };
   $('dm-mig-map').onclick = e => { if (pick(e)) renderPerfil(); };
   $('dm-mig-table').onclick = e => { if (pick(e)) renderPerfil(); };
   $('dm-mig-muni').onchange = e => { st.muni = e.target.value; renderPerfil(); };
@@ -430,7 +461,7 @@ export async function initDemografia() {
     $('dm-p-esc').onchange = e => { st.esc = e.target.value; renderProyeccion(); };
     $('dm-p-anio').onchange = e => { st.pa = e.target.value; renderProyeccion(); };
     $('dm-p-muni').onchange = e => { st.muni = e.target.value; renderPiramideP(); };
-    const pk = e => { const g = e.target.closest('[data-geo]')?.dataset.geo; if (g && D.municipios[g]) { st.muni = g; renderPiramideP(); } };
+    const pk = e => { const g = e.target.closest('[data-geo]')?.dataset.geo; if (g && (D.municipios[g] || g === 'SEL')) { st.muni = g; renderPiramideP(); } };
     $('dm-p-map').onclick = pk; $('dm-p-table').onclick = pk;
   }
   $('dm-est-muni').value = st.muni;

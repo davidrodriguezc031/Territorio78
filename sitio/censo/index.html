@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Observatorio Censal de Puerto Rico</title>
 <meta name="description" content="Consulta estadísticas oficiales del Censo de Estados Unidos para Puerto Rico, sus municipios y barrios.">
-<link rel="stylesheet" href="style.css?v=20261120c">
-<script type="module" src="app.js?v=20261120c"></script>
+<link rel="stylesheet" href="style.css?v=20261120d">
+<script type="module" src="app.js?v=20261120d"></script>
 </head>
 <body>
 <a class="skip" href="#contenido">Ir al contenido</a>
@@ -83,7 +83,7 @@
         <div class="panel cmp-controls">
           <div class="cmp-row">
             <label>Geografía<select id="cmp-level"><option value="pr">Puerto Rico</option><option value="municipio" selected>Municipios</option><option value="barrio">Barrios y barrios-pueblo</option></select></label>
-            <label id="cmp-parent-label" hidden>Municipio<select id="cmp-parent"></select></label>
+            <div id="cmp-sel-label" class="mp-field"><span>Municipios</span><div id="cmp-sel"></div></div>
             <label class="check"><input type="checkbox" id="cmp-adjust" checked> Ajustar dólares de la ACS por inflación (R-CPI-U-RS)</label>
             <span id="cmp-count" class="cmp-count"></span>
           </div>
@@ -102,7 +102,7 @@
         <div class="panel cmp-controls">
           <div class="cmp-row">
             <label>Geografía<select id="map-level"><option value="municipio" selected>Municipios</option><option value="barrio">Barrios y barrios-pueblo</option></select></label>
-            <label id="map-parent-label" hidden>Municipio<select id="map-parent"></select></label>
+            <div class="mp-field"><span>Municipios</span><div id="map-sel"></div></div>
             <label class="grow">Indicador<select id="map-ind"></select></label>
             <label>Clases<select id="map-breaks"><option value="quantile">Cuantiles comunes</option><option value="equal">Intervalos iguales</option></select></label>
             <label class="check"><input type="checkbox" id="map-change" checked> Mapa de cambio</label>
@@ -136,6 +136,7 @@
       <div id="dm-root">
       <div class="cmp-tabs-main" role="tablist"><button type="button" class="btn accent" data-dm="componentes" role="tab" aria-selected="true">Componentes del cambio</button><button type="button" class="btn neutral" data-dm="migracion" role="tab" aria-selected="false">Migración neta municipal</button><button type="button" class="btn neutral" data-dm="estructura" role="tab" aria-selected="false">Estructura por edad</button><button type="button" class="btn neutral" data-dm="crecimiento" role="tab" aria-selected="false">Crecimiento</button><button type="button" class="btn neutral" data-dm="proyeccion" role="tab" aria-selected="false">Proyección 2030–2035</button><button type="button" class="btn neutral" data-dm="formulas" role="tab" aria-selected="false">Fórmulas y análisis recomendados</button></div>
 
+      <div class="panel dm-selbar"><div class="mp-field"><span>Municipios en tablas y mapas</span><div id="dm-sel"></div></div><p class="map-source">Elige varios municipios o un Área Funcional para limitar las tablas y los mapas de migración, estructura por edad, crecimiento y proyección. Con dos o más municipios aparece una fila con el total del grupo: los recuentos se suman y las tasas e índices se recalculan con esas sumas.</p></div>
       <div id="dm-pane-componentes" class="cmp-pane">
         <div id="dm-kpis" class="dm-kpis"></div>
         <article class="panel dm-card"><h3>Puerto Rico: nacimientos, defunciones y migración neta por año (1 jul. – 30 jun.)</h3><div id="dm-chart"></div><p class="dm-formula"><b>Ecuación compensadora:</b> P(t+1) − P(t) = (Nacimientos − Defunciones) + Migración neta + Residual. <b>Tasas:</b> componente ÷ promedio de la población al 1 de julio inicial y final × 1,000.</p><p id="dm-check" class="map-source"></p></article>
