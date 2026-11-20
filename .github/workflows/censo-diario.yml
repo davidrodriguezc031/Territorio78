@@ -58,6 +58,13 @@ jobs:
             echo "datos=cambiados" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Análisis demográfico (componentes, migración neta y estructura por edad)
+        continue-on-error: true
+        run: |
+          FLAGS=""
+          if [ "$(date -u +%u)" = "7" ] || [ "${{ inputs.refresh }}" = "true" ]; then FLAGS="--refresh"; fi
+          python repositorio/demografia.py sitio/censo/data/demografia.json $FLAGS | tee -a publicar.txt
+
       - name: Guardar cambios
         run: |
           git config user.name "territorio78-bot"
@@ -71,7 +78,7 @@ jobs:
           else
             git checkout -- repositorio/observatorio.sqlite 2>/dev/null || true
           fi
-          git add sitio/censo/data/
+          git add sitio/censo/data/ repositorio/fuentes/ 2>/dev/null || git add sitio/censo/data/
           if git diff --cached --quiet; then
             echo "Sin cambios que guardar."
             exit 0
