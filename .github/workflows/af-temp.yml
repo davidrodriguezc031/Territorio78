@@ -1,0 +1,38 @@
+name: Copiar Áreas Funcionales de SIGE (temporal)
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  af:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Consultar la capa oficial
+        run: |
+          B=https://sige.pr.gov/server/rest/services/municipios/areas_funcionales/FeatureServer
+          mkdir -p repositorio/fuentes
+          curl -sSfL "$B/layers?f=json" -o repositorio/fuentes/sige_af_layers.json
+          python3 - <<'PY'
+          import json
+          L=json.load(open('repositorio/fuentes/sige_af_layers.json'))
+          for l in L.get('layers',[])+L.get('tables',[]):
+              print(l['id'],l['name'],l.get('geometryType'),[ (f['name'],f.get('alias')) for f in l.get('fields',[])])
+              print('desc:',(l.get('description') or '')[:400]); print('copyright:',l.get('copyrightText'))
+          PY
+          for id in 0 1 2; do curl -sSfL "$B/$id/query?where=1%3D1&outFields=*&returnGeometry=false&f=json" -o repositorio/fuentes/sige_af_$id.json || true; done
+          python3 - <<'PY'
+          import json,os
+          for i in (0,1,2):
+              f=f'repositorio/fuentes/sige_af_{i}.json'
+              if not os.path.exists(f): continue
+              d=json.load(open(f)); feats=d.get('features',[])
+              print('layer',i,len(feats))
+              for x in feats[:100]: print(x['attributes'])
+          PY
+      - name: Guardar
+        run: |
+          git config user.name "territorio78-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add repositorio/fuentes/sige_af_*.json
+          git commit -m "Áreas Funcionales: copia de la capa oficial de SIGE (Junta de Planificación)" || true
+          git push
