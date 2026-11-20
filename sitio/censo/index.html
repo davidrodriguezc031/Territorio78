@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Observatorio Censal de Puerto Rico</title>
 <meta name="description" content="Consulta estadísticas oficiales del Censo de Estados Unidos para Puerto Rico, sus municipios y barrios.">
-<link rel="stylesheet" href="style.css?v=20261118">
-<script type="module" src="app.js?v=20261118"></script>
+<link rel="stylesheet" href="style.css?v=20261120">
+<script type="module" src="app.js?v=20261120"></script>
 </head>
 <body>
 <a class="skip" href="#contenido">Ir al contenido</a>
@@ -18,7 +18,8 @@
     <a href="#inicio" data-nav="inicio"><i data-icon="grid"></i>Resumen</a>
     <a href="#explorar" data-nav="explorar"><i data-icon="chart"></i>Explorar datos</a>
     <a href="#mapa" data-nav="mapa"><i data-icon="map"></i>Mapa interactivo</a>
-    <a href="#comparar" data-nav="comparar"><i data-icon="table"></i>Comparar periodos</a>
+    <a href="#comparar" data-nav="comparar"><i data-icon="layers"></i>Comparar periodos</a>
+    <a href="#demografia" data-nav="demografia"><i data-icon="chart"></i>Análisis demográfico</a>
     <a href="#catalogo" data-nav="catalogo"><i data-icon="layers"></i>Catálogo de productos</a>
     <a href="#metodologia" data-nav="metodologia"><i data-icon="book"></i>Fuentes y metodología</a>
   </nav>
@@ -128,6 +129,69 @@
           <h3 style="margin-top:16px">Reglas de coherencia aplicadas</h3>
           <ul id="cmp-criteria" class="crit-list"></ul>
         </article>
+      </div>
+    </section>
+    <section id="demografia" aria-labelledby="demografia-title">
+      <div class="section-header"><div><h2 id="demografia-title">Análisis demográfico</h2><p>Componentes del cambio de población, migración neta por municipio, estructura por edad y crecimiento, calculados con fórmulas demográficas estándar a partir de fuentes oficiales. Se actualiza solo cuando el Census Bureau publica una nueva edición.</p><p class="map-source" id="dm-meta"></p></div><div class="exports"><button id="dm-dl" class="btn accent"><i data-icon="download"></i> Descargar Excel</button></div></div>
+      <div id="dm-root">
+      <div class="cmp-tabs-main" role="tablist"><button type="button" class="btn accent" data-dm="componentes" role="tab" aria-selected="true">Componentes del cambio</button><button type="button" class="btn neutral" data-dm="migracion" role="tab" aria-selected="false">Migración neta municipal</button><button type="button" class="btn neutral" data-dm="estructura" role="tab" aria-selected="false">Estructura por edad</button><button type="button" class="btn neutral" data-dm="crecimiento" role="tab" aria-selected="false">Crecimiento</button><button type="button" class="btn neutral" data-dm="formulas" role="tab" aria-selected="false">Fórmulas y análisis recomendados</button></div>
+
+      <div id="dm-pane-componentes" class="cmp-pane">
+        <div id="dm-kpis" class="dm-kpis"></div>
+        <article class="panel dm-card"><h3>Puerto Rico: nacimientos, defunciones y migración neta por año (1 jul. – 30 jun.)</h3><div id="dm-chart"></div><p class="dm-formula"><b>Ecuación compensadora:</b> P(t+1) − P(t) = (Nacimientos − Defunciones) + Migración neta + Residual. <b>Tasas:</b> componente ÷ promedio de la población al 1 de julio inicial y final × 1,000.</p><p id="dm-check" class="map-source"></p></article>
+        <article class="panel table-card"><div id="dm-table"></div><div class="source-line">Fuente: U.S. Census Bureau, Population Estimates Program (PEP), componentes del cambio para Puerto Rico. Los nacimientos y defunciones provienen de los registros vitales; el primer periodo abarca del 1 de abril al 30 de junio de 2020.</div></article>
+      </div>
+
+      <div id="dm-pane-migracion" class="cmp-pane" hidden>
+        <p class="notice dm-note">El Census Bureau publica la migración neta solo para Puerto Rico en conjunto. Para cada municipio, el Observatorio la <b>estima</b> con el método de supervivencia: compara la población de cada cohorte de edad en 2025 con la que se esperaría si nadie hubiera migrado, aplicando las probabilidades de sobrevivir de la tabla de vida de Puerto Rico. La diferencia es la migración neta de las personas de 5 años o más.</p>
+        <div class="dm-two">
+          <article class="panel dm-card"><h3>Tasa anual de migración neta por municipio</h3><div id="dm-mig-map"></div><div id="dm-mig-legend" class="cmp-legend"></div><p class="map-source">Pulsa un municipio para ver su perfil por edad. Proyección equirrectangular ajustada a 18.2° N.</p></article>
+          <article class="panel dm-card"><div class="cmp-row"><label>Municipio<select id="dm-mig-muni"></select></label></div><div id="dm-mig-perfil"></div></article>
+        </div>
+        <p id="dm-mig-val" class="dm-val"></p>
+        <article class="panel table-card"><div class="card-head"><div><h3>Migración neta estimada por municipio</h3></div><div class="exports"><label>Ordenar<select id="dm-mig-orden"><option value="tasa">Por tasa</option><option value="neta">Por personas</option><option value="nombre">Por nombre</option></select></label></div></div><div id="dm-mig-table"></div>
+        <div class="source-line">Fórmula: M(x+5) = P(x+5, 2025) − S(x) · P(x, 2020), con S(x) = ₅L(x+5) / ₅L(x) de la tabla de vida de Puerto Rico (ONU, World Population Prospects 2024), ajustada a las defunciones oficiales del PEP. Población por edad y sexo: U.S. Census Bureau, PEP. Es una estimación del Observatorio, no una cifra oficial.</div></article>
+      </div>
+
+      <div id="dm-pane-estructura" class="cmp-pane" hidden>
+        <div class="panel cmp-controls"><div class="cmp-row"><label class="grow">Indicador<select id="dm-est-ind"></select></label><label>Año<select id="dm-est-anio"></select></label><label>Pirámide de<select id="dm-est-muni"></select></label></div></div>
+        <div class="dm-two">
+          <article class="panel dm-card"><div id="dm-est-map"></div><div id="dm-est-legend" class="cmp-legend"></div></article>
+          <article class="panel dm-card"><div id="dm-piramide"></div></article>
+        </div>
+        <article class="panel table-card"><div id="dm-est-table"></div><div class="source-line">Fuente: U.S. Census Bureau, PEP, población por grupos de edad y sexo de los municipios (estimados al 1 de julio).</div></article>
+      </div>
+
+      <div id="dm-pane-crecimiento" class="cmp-pane" hidden>
+        <article class="panel dm-card"><h3>Tasa de crecimiento exponencial anual</h3><div id="dm-cre-map"></div><div id="dm-cre-legend" class="cmp-legend"></div><p class="dm-formula"><b>Fórmula:</b> r = ln(P<sub>2</sub> / P<sub>1</sub>) / t. Años para duplicarse o reducirse a la mitad = ln 2 / |r|.</p></article>
+        <article class="panel table-card"><div id="dm-cre-table"></div></article>
+      </div>
+
+      <div id="dm-pane-formulas" class="cmp-pane" hidden>
+        <article class="panel dm-card"><h3>Fórmulas aplicadas</h3><div id="dm-formulas" class="formulas"></div></article>
+        <article class="panel dm-card"><h3>Análisis recomendados para una próxima fase</h3>
+          <div class="recs">
+            <div><h4>Proyección por cohortes (Hamilton–Perry)</h4><p>Proyecta la población municipal por edad y sexo con razones de cambio de cohorte: P(x+5, t+5) = [P(x+5, t) / P(x, t−5)] · P(x, t). Necesita solo dos edades por municipio, que ya están en el Observatorio, y sirve para horizontes de planificación de 5 a 15 años.</p><small>Swanson, Schlottmann y Schmidt (2010); Smith, Tayman y Swanson (2013).</small></div>
+            <div><h4>Cociente de localización y análisis de cambio y participación (shift-share)</h4><p>CL = (e<sub>i</sub>/e) / (E<sub>i</sub>/E) mide la especialización del empleo de un municipio en una industria frente a Puerto Rico; el shift-share separa el cambio del empleo en efecto general, de estructura y local. Requiere County Business Patterns por sector NAICS.</p><small>U.S. Census Bureau, County Business Patterns; Stimson, Stough y Roberts (2006).</small></div>
+            <div><h4>Índice de redistribución de Hoover</h4><p>H = ½ Σ |p<sub>i,t2</sub> − p<sub>i,t1</sub>|, con p<sub>i</sub> como la proporción de la población de Puerto Rico en el municipio i. Resume en un número cuánto se redistribuye la población entre municipios.</p><small>Hoover (1941); Plane y Rogerson (1994).</small></div>
+            <div><h4>Demanda de vivienda por tasas de jefatura</h4><p>Hogares = Σ población(edad) × tasa de jefatura(edad). Combinado con la proyección por cohortes, estima cuántas viviendas ocupadas requerirá cada municipio. Requiere hogares por edad del jefe (ACS).</p><small>Smith, Tayman y Swanson (2013).</small></div>
+          </div>
+        </article>
+        <article class="panel dm-card"><h3>Referencias</h3><ul class="crit-list">
+          <li>U.S. Census Bureau (2026). <i>Methodology for the United States Population Estimates: Vintage 2025</i>. <a href="https://www2.census.gov/programs-surveys/popest/technical-documentation/methodology/2020-2025/methods-statement-v2025.pdf" target="_blank" rel="noopener">Enlace ↗</a></li>
+          <li>U.S. Census Bureau (2026). <i>NST-EST2025-ALLDATA: Annual Population Estimates, Estimated Components of Resident Population Change, and Rates of the Components</i> (diseño de archivo). <a href="https://www2.census.gov/programs-surveys/popest/technical-documentation/file-layouts/2020-2025/NST-EST2025-ALLDATA.pdf" target="_blank" rel="noopener">Enlace ↗</a></li>
+          <li>U.S. Census Bureau (2026). <i>Puerto Rico Municipios Population by Characteristics: 2020–2025</i>. <a href="https://www.census.gov/data/datasets/time-series/demo/popest/2020s-detail-puerto-rico-municipios.html" target="_blank" rel="noopener">Enlace ↗</a></li>
+          <li>Naciones Unidas, DESA, División de Población (2024). <i>World Population Prospects 2024: Methodology of the United Nations population estimates and projections</i>. <a href="https://population.un.org/WPP/Publications/Files/WPP2024_Methodology.pdf" target="_blank" rel="noopener">Enlace ↗</a></li>
+          <li>Naciones Unidas (1970). <i>Manual VI: Methods of Measuring Internal Migration</i>. Population Studies No. 46. <a href="https://www.un.org/development/desa/pd/node/2994" target="_blank" rel="noopener">Enlace ↗</a></li>
+          <li>Siegel, J. S. y Swanson, D. A. (Eds.) (2004). <i>The Methods and Materials of Demography</i> (2.ª ed.). Elsevier Academic Press.</li>
+          <li>Preston, S. H., Heuveline, P. y Guillot, M. (2001). <i>Demography: Measuring and Modeling Population Processes</i>. Blackwell.</li>
+          <li>Swanson, D. A., Schlottmann, A. y Schmidt, B. (2010). Forecasting the population of census tracts by age and sex: An example of the Hamilton–Perry method in action. <i>Population Research and Policy Review, 29</i>(1), 47–63. <a href="https://doi.org/10.1007/s11113-009-9144-7" target="_blank" rel="noopener">doi ↗</a></li>
+          <li>Smith, S. K., Tayman, J. y Swanson, D. A. (2013). <i>A Practitioner's Guide to State and Local Population Projections</i>. Springer.</li>
+          <li>Hoover, E. M. (1941). Interstate redistribution of population, 1850–1940. <i>The Journal of Economic History, 1</i>(2), 199–205.</li>
+          <li>Plane, D. A. y Rogerson, P. A. (1994). <i>The Geographical Analysis of Population: With Applications to Planning and Business</i>. Wiley.</li>
+          <li>Stimson, R. J., Stough, R. R. y Roberts, B. H. (2006). <i>Regional Economic Development: Analysis and Planning Strategy</i> (2.ª ed.). Springer.</li>
+        </ul></article>
+      </div>
       </div>
     </section>
     <section id="catalogo" aria-labelledby="catalogo-title">

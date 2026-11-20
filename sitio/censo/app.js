@@ -39,7 +39,7 @@ let lastRows = [], lastView = null;
 const json = async path => { const r = await fetch(path); if (!r.ok) throw Error(r.status+' '+path); return r.json(); };
 function nav() {
   const key = location.hash.slice(1) || 'inicio';
-  const active = document.querySelector('[data-nav="'+({inicio:'inicio',explorar:'explorar',mapa:'mapa',comparar:'comparar',catalogo:'catalogo',metodologia:'metodologia'}[key] || 'inicio')+'"]');
+  const active = document.querySelector('[data-nav="'+({inicio:'inicio',explorar:'explorar',mapa:'mapa',comparar:'comparar',demografia:'demografia',catalogo:'catalogo',metodologia:'metodologia'}[key] || 'inicio')+'"]');
   for (const a of document.querySelectorAll('[data-nav]')) a.removeAttribute('aria-current');
   active.setAttribute('aria-current','location');
   $('breadcrumb').textContent = active.textContent.trim();
@@ -390,3 +390,6 @@ for (const b of document.querySelectorAll('[data-cmp]')) b.addEventListener('cli
   for (const id of ['tabla','mapas','criterios']) $('cmp-pane-'+id).hidden = b.dataset.cmp!==id;
 });
 import('./comparar.js'+new URL(import.meta.url).search).then(m=>m.initComparar()).catch(e=>{console.error(e);$('cmp-table').innerHTML='<p class="notice">No se pudo cargar el módulo de comparaciones.</p>';});
+
+/* Análisis demográfico */
+import('./demografia.js'+new URL(import.meta.url).search).then(m=>m.initDemografia()).catch(e=>{console.error(e);$('dm-root').innerHTML='<p class="notice">No se pudo cargar el análisis demográfico.</p>';});
