@@ -23,6 +23,7 @@ import gzip
 import io
 import json
 import math
+import os
 import sys
 import time
 import urllib.request
@@ -172,18 +173,18 @@ def referencias_pr(years):
     ref = {}
     try:
         res = {}
-        for y in years:
-            raw = None
-            for url in (f"https://api.census.gov/data/timeseries/idb/5year?get=NAME,POP&YR={y}&GENC=PR",
-                        f"https://api.census.gov/data/timeseries/idb/5year?get=NAME,POP&YR={y}&FIPS=RQ"):
-                try:
-                    raw = json.loads(get(url, tries=2))
-                    break
-                except Exception:  # noqa: BLE001
-                    continue
-            if raw:
-                h = raw[0]
-                res[y] = int(float(raw[1][h.index("POP")]))
+        key = os.environ.get("CENSUS_API_KEY", "").strip()
+        if not key:
+            print("IDB: se omite (la API del Census Bureau requiere la clave CENSUS_API_KEY).", file=sys.stderr)
+        else:
+            url = (f"https://api.census.gov/data/timeseries/idb/5year?get=NAME,POP&YR={min(years)}:{max(years)}"
+                   f"&for=genc%20standard%20countries%20and%20areas:PR&key={key}")
+            raw = json.loads(get(url, tries=2))
+            h = raw[0]
+            for r in raw[1:]:
+                y = int(r[h.index("YR")]) if "YR" in h else None
+                if y in years:
+                    res[y] = int(float(r[h.index("POP")]))
         if res:
             ref["census_idb"] = {"fuente": "U.S. Census Bureau, International Database (IDB)",
                                  "url": "https://www.census.gov/programs-surveys/international-programs/about/idb.html", "poblacion": res}

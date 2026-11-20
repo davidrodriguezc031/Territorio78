@@ -60,6 +60,8 @@ jobs:
 
       - name: Análisis demográfico (componentes, migración neta y estructura por edad)
         continue-on-error: true
+        env:
+          CENSUS_API_KEY: ${{ secrets.CENSUS_API_KEY }}
         run: |
           FLAGS=""
           if [ "$(date -u +%u)" = "7" ] || [ "${{ inputs.refresh }}" = "true" ]; then FLAGS="--refresh"; fi

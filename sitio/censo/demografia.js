@@ -155,10 +155,7 @@ function prIndice(ind, y) {
   const j = g[0] + g[1] + g[2], ad = g.slice(3, 13).reduce((a, b) => a + b, 0), my = g.slice(13).reduce((a, b) => a + b, 0);
   return {dep_total:100 * (j + my) / ad, dep_juvenil:100 * j / ad, dep_vejez:100 * my / ad, envejecimiento:100 * my / j, masculinidad:100 * t.h / t.m, pct_65:100 * my / t.pob, pct_0_14:100 * j / t.pob}[ind];
 }
-function renderPiramide() {
-  const m = st.muni === '72' ? null : D.municipios[st.muni];
-  const y = st.anio || String(D.vintage);
-  const A = m ? m.anios['2020'] : prTot('2020'), B = m ? m.anios[y] : prTot(y);
+function piramideSVG(A, B, yA, yB, nombre, nota) {
   const pa = A.h + A.m, pb = B.h + B.m;
   const pct = (v, tot) => 100 * v / tot;
   const mx = Math.max(...B.gh.map(v => pct(v, pb)), ...B.gm.map(v => pct(v, pb)), ...A.gh.map(v => pct(v, pa)), ...A.gm.map(v => pct(v, pa)));
@@ -167,13 +164,76 @@ function renderPiramide() {
   ages.forEach((a, i) => {
     const yy = (ages.length - 1 - i) * rowH + 2;
     const bh = pct(B.gh[i], pb) / mx * half, bm = pct(B.gm[i], pb) / mx * half, ah = pct(A.gh[i], pa) / mx * half, am = pct(A.gm[i], pa) / mx * half;
-    g += '<rect x="' + (mid - 18 - bh) + '" y="' + yy + '" width="' + bh + '" height="' + (rowH - 3) + '" fill="#3d6fb0" fill-opacity=".75"><title>Hombres ' + a + ' (' + y + '): ' + nf1.format(pct(B.gh[i], pb)) + ' %</title></rect>' +
-      '<rect x="' + (mid + 18) + '" y="' + yy + '" width="' + bm + '" height="' + (rowH - 3) + '" fill="#c0587e" fill-opacity=".75"><title>Mujeres ' + a + ' (' + y + '): ' + nf1.format(pct(B.gm[i], pb)) + ' %</title></rect>' +
+    g += '<rect x="' + (mid - 18 - bh) + '" y="' + yy + '" width="' + bh + '" height="' + (rowH - 3) + '" fill="#3d6fb0" fill-opacity=".75"><title>Hombres ' + a + ' (' + yB + '): ' + nf1.format(pct(B.gh[i], pb)) + ' %</title></rect>' +
+      '<rect x="' + (mid + 18) + '" y="' + yy + '" width="' + bm + '" height="' + (rowH - 3) + '" fill="#c0587e" fill-opacity=".75"><title>Mujeres ' + a + ' (' + yB + '): ' + nf1.format(pct(B.gm[i], pb)) + ' %</title></rect>' +
       '<rect x="' + (mid - 18 - ah) + '" y="' + yy + '" width="' + ah + '" height="' + (rowH - 3) + '" fill="none" stroke="#173239" stroke-width="1"/><rect x="' + (mid + 18) + '" y="' + yy + '" width="' + am + '" height="' + (rowH - 3) + '" fill="none" stroke="#173239" stroke-width="1"/>' +
       '<text x="' + mid + '" y="' + (yy + 10) + '" text-anchor="middle">' + a + '</text>';
   });
-  $('dm-piramide').innerHTML = '<h4>Pirámide de población: ' + esc(m ? m.nombre : 'Puerto Rico') + '</h4><svg viewBox="0 0 ' + W + ' ' + (rowH * ages.length + 16) + '" class="dm-svg" role="img" aria-label="Pirámide de población">' + g + '<text x="' + (mid - 24) + '" y="' + (rowH * ages.length + 13) + '" text-anchor="end">Hombres</text><text x="' + (mid + 24) + '" y="' + (rowH * ages.length + 13) + '">Mujeres</text></svg>' +
-    '<p class="map-source">Barras: ' + y + ' (% de la población total). Contorno: 2020. Fuente: U.S. Census Bureau, PEP V' + D.vintage + ', población por edad y sexo.</p>';
+  return '<h4>Pirámide de población: ' + esc(nombre) + '</h4><svg viewBox="0 0 ' + W + ' ' + (rowH * ages.length + 16) + '" class="dm-svg" role="img" aria-label="Pirámide de población">' + g + '<text x="' + (mid - 24) + '" y="' + (rowH * ages.length + 13) + '" text-anchor="end">Hombres</text><text x="' + (mid + 24) + '" y="' + (rowH * ages.length + 13) + '">Mujeres</text></svg>' +
+    '<p class="map-source">Barras: ' + yB + ' (% de la población total). Contorno: ' + yA + '. ' + nota + '</p>';
+}
+function renderPiramide() {
+  const m = st.muni === '72' ? null : D.municipios[st.muni];
+  const y = st.anio || String(D.vintage);
+  $('dm-piramide').innerHTML = piramideSVG(m ? m.anios['2020'] : prTot('2020'), m ? m.anios[y] : prTot(y), '2020', y, m ? m.nombre : 'Puerto Rico', 'Fuente: U.S. Census Bureau, PEP V' + D.vintage + ', población por edad y sexo.');
+}
+
+/* ---------- 5. Proyección por cohortes ---------- */
+const ESC = {tendencia:'Tendencia 2020–2025 (Hamilton–Perry)', sin_migracion:'Sin migración (solo nacimientos y defunciones)'};
+const atipico = m => Math.abs(m.migracion?.tasa_anual_por_mil ?? 0) >= 10;
+function renderProyeccion() {
+  const P = D.proyeccion_pr; if (!P || !P.tendencia) { $('dm-pane-proyeccion').innerHTML = '<p class="notice">La proyección se genera con la próxima actualización.</p>'; return; }
+  const base = P.base, ys = Object.keys(P.tendencia).sort(), esc0 = st.esc || 'tendencia', y = st.pa || ys.at(-1);
+  const wpp = P.referencias?.onu_wpp2024?.poblacion, idb = P.referencias?.census_idb?.poblacion;
+  const impl = (ref, yy) => ref && ref[base.anio] ? Math.round(base.pob * ref[yy] / ref[base.anio]) : null;
+  const pctc = (a, b) => 100 * (b - a) / a;
+  $('dm-pr-kpis').innerHTML = [[nf0.format(base.pob), 'población ' + base.anio + ' (PEP)']].concat(ys.flatMap(yy => [[nf0.format(P.tendencia[yy].pob), yy + ' · tendencia (' + sg(pctc(base.pob, P.tendencia[yy].pob), nf1) + ' %)'], [nf0.format(P.sin_migracion[yy].pob), yy + ' · sin migración (' + sg(pctc(base.pob, P.sin_migracion[yy].pob), nf1) + ' %)']]))
+    .map(([a, b]) => '<div><strong>' + esc(a) + '</strong><small>' + esc(b) + '</small></div>').join('');
+  // gráfica de líneas: serie PEP 2020–2025 y escenarios
+  const serie = D.pr.anios.map((yy, k) => [yy, D.pr.poblacion[k]]);
+  const lines = {pep:serie, tendencia:[[base.anio, base.pob]].concat(ys.map(yy => [+yy, P.tendencia[yy].pob])), sin:[[base.anio, base.pob]].concat(ys.map(yy => [+yy, P.sin_migracion[yy].pob]))};
+  if (wpp) lines.wpp = [[base.anio, base.pob]].concat(ys.map(yy => [+yy, impl(wpp, yy)]));
+  if (idb) lines.idb = [[base.anio, base.pob]].concat(ys.map(yy => [+yy, impl(idb, yy)]));
+  const all = Object.values(lines).flat().map(q => q[1]); const lo = Math.min(...all) * .985, hi = Math.max(...all) * 1.005;
+  const W = 640, H = 250, L = 64, R = 150, T = 12, B = 26, x0 = 2020, x1 = +ys.at(-1);
+  const X = v => L + (v - x0) / (x1 - x0) * (W - L - R), Yv = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  let g = '';
+  for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4; g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Yv(v) + '" y2="' + Yv(v) + '" class="gl"/><text x="' + (L - 6) + '" y="' + (Yv(v) + 3) + '" text-anchor="end">' + nf1.format(v / 1e6) + ' M</text>'; }
+  for (let v = x0; v <= x1; v += 5) g += '<text x="' + X(v) + '" y="' + (H - 8) + '" text-anchor="middle">' + v + '</text>';
+  const style = {pep:['#173239', ''], tendencia:['#b5651d', ''], sin:['#3d6fb0', '5 4'], wpp:['#7a7a7a', '2 3'], idb:['#2a9d8f', '2 3']};
+  const name = {pep:'PEP (estimados oficiales)', tendencia:'Tendencia 2020–2025', sin:'Sin migración', wpp:'ONU WPP 2024 (ritmo aplicado a la base PEP)', idb:'Census Bureau IDB (ritmo aplicado a la base PEP)'};
+  let ly = T + 6;
+  for (const [k, pts] of Object.entries(lines)) {
+    const [c, dash] = style[k];
+    g += '<polyline points="' + pts.map(q => X(q[0]) + ',' + Yv(q[1])).join(' ') + '" fill="none" stroke="' + c + '" stroke-width="2"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>' + pts.slice(k === 'pep' ? 0 : 1).map(q => '<circle cx="' + X(q[0]) + '" cy="' + Yv(q[1]) + '" r="3" fill="' + c + '"><title>' + esc(name[k] + ' ' + q[0] + ': ' + nf0.format(q[1])) + '</title></circle>').join('');
+    g += '<line x1="' + (W - R + 12) + '" x2="' + (W - R + 32) + '" y1="' + ly + '" y2="' + ly + '" stroke="' + c + '" stroke-width="2"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/><text x="' + (W - R + 36) + '" y="' + (ly + 3) + '" style="font-size:9px">' + esc(name[k].replace(/ \(.*\)/, '')) + '</text>';
+    ly += 15;
+  }
+  $('dm-pr-chart').innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="dm-svg" role="img" aria-label="Población de Puerto Rico: estimados y proyecciones">' + g + '</svg>';
+  const refRows = [['Tendencia 2020–2025 (Hamilton–Perry)', ys.map(yy => P.tendencia[yy].pob)], ['Sin migración', ys.map(yy => P.sin_migracion[yy].pob)]];
+  if (wpp) refRows.push(['ONU WPP 2024, ritmo aplicado a la base PEP ' + base.anio, ys.map(yy => impl(wpp, yy))], ['ONU WPP 2024, cifra publicada (otra base: ' + nf0.format(wpp[base.anio]) + ' en ' + base.anio + ')', ys.map(yy => wpp[yy])]);
+  if (idb) refRows.push(['Census Bureau IDB, ritmo aplicado a la base PEP ' + base.anio, ys.map(yy => impl(idb, yy))], ['Census Bureau IDB, cifra publicada', ys.map(yy => idb[yy])]);
+  $('dm-pr-ref').innerHTML = '<div class="table-scroll"><table class="cmp"><thead><tr><th>Escenario o referencia</th>' + ys.map(yy => '<th>' + yy + '</th>').join('') + '<th>Cambio ' + base.anio + '–' + ys.at(-1) + '</th></tr></thead><tbody>' +
+    refRows.map(([n, v]) => '<tr><td>' + esc(n) + '</td>' + v.map(x => '<td>' + nf0.format(x) + '</td>').join('') + '<td>' + (/publicada/.test(n) ? sg(pctc(n.includes('WPP') ? wpp[base.anio] : idb[base.anio], v.at(-1)), nf1) : sg(pctc(base.pob, v.at(-1)), nf1)) + ' %</td></tr>').join('') + '</tbody></table></div>' +
+    (idb ? '' : '<p class="map-source">La comparación con la proyección del Census Bureau (International Database) se añadirá automáticamente cuando el repositorio tenga la clave gratuita CENSUS_API_KEY.</p>');
+  // mapa y tabla municipal
+  const vals = new Map(Object.entries(D.municipios).map(([g2, m]) => [g2, m.proy ? pctc(m.anios[String(base.anio)].pob, m.proy[esc0][y].pob) : null]));
+  const br = [-12, -8, -4, 0, 4];
+  const cols = ['#8c510a', '#bf812d', '#dfc27d', '#f6e8c3', '#80cdc1', '#01665e'];
+  $('dm-p-map').innerHTML = mapa(vals, br, cols, (g2, v) => D.municipios[g2].nombre + ': ' + (Number.isFinite(v) ? sg(v, nf1) + ' % entre ' + base.anio + ' y ' + y : 'sin dato'), 'Cambio proyectado de población ' + base.anio + '–' + y);
+  $('dm-p-legend').innerHTML = leyenda('Cambio de población ' + base.anio + '–' + y + ', ' + ESC[esc0] + ' (%)', br, cols, x => sg(x, nf0) + ' %');
+  const list = munis().map(([g2, m]) => ({g:g2, n:m.nombre, b:m.anios[String(base.anio)].pob, p:m.proy, at:atipico(m)})).sort((p, q) => pctc(p.b, p.p[esc0][y].pob) - pctc(q.b, q.p[esc0][y].pob));
+  $('dm-p-table').innerHTML = '<div class="table-scroll tall"><table class="cmp"><thead><tr><th>Municipio</th><th>' + base.anio + '</th>' + ys.map(yy => '<th>' + yy + '</th>').join('') + '<th>Cambio ' + base.anio + '–' + y + '</th><th>65+ en ' + y + '</th><th>Dependencia de vejez ' + y + '</th></tr></thead><tbody>' +
+    '<tr class="pr"><td><strong>Puerto Rico</strong></td><td>' + nf0.format(base.pob) + '</td>' + ys.map(yy => '<td>' + nf0.format(P[esc0][yy].pob) + '</td>').join('') + '<td>' + sg(pctc(base.pob, P[esc0][y].pob), nf1) + ' %</td><td>' + nf1.format(P[esc0][y].ind.pct_65) + ' %</td><td>' + nf1.format(P[esc0][y].ind.dep_vejez) + '</td></tr>' +
+    list.map(x => '<tr data-geo="' + x.g + '"' + (x.g === st.muni ? ' class="sel"' : '') + '><td><button type="button" class="linkish" data-geo="' + x.g + '">' + esc(x.n) + '</button>' + (x.at ? ' <span class="flag" title="Migración 2020–2025 de ±10 por mil o más al año: la tendencia puede no repetirse">base atípica</span>' : '') + '</td><td>' + nf0.format(x.b) + '</td>' + ys.map(yy => '<td>' + nf0.format(x.p[esc0][yy].pob) + '</td>').join('') + '<td class="' + (x.p[esc0][y].pob < x.b ? 'neg' : 'pos') + '">' + sg(pctc(x.b, x.p[esc0][y].pob), nf1) + ' %</td><td>' + nf1.format(x.p[esc0][y].ind.pct_65) + ' %</td><td>' + nf1.format(x.p[esc0][y].ind.dep_vejez) + '</td></tr>').join('') + '</tbody></table></div>';
+  renderPiramideP();
+}
+function renderPiramideP() {
+  const P = D.proyeccion_pr, esc0 = st.esc || 'tendencia', y = st.pa || Object.keys(P.tendencia).sort().at(-1), b = String(P.base.anio);
+  const m = st.muni === '72' ? null : D.municipios[st.muni];
+  $('dm-p-muni').value = m ? st.muni : '72';
+  $('dm-p-piramide').innerHTML = piramideSVG(m ? m.anios[b] : prTot(b), m ? m.proy[esc0][y] : P[esc0][y], b, y + ' (proyectado)', (m ? m.nombre : 'Puerto Rico') + ' · ' + ESC[esc0], 'Proyección del Observatorio; no es una cifra oficial.');
+  for (const tr of document.querySelectorAll('#dm-p-table tr[data-geo]')) tr.classList.toggle('sel', tr.dataset.geo === st.muni);
 }
 
 /* ---------- 4. Crecimiento ---------- */
@@ -207,7 +267,15 @@ async function descargar() {
     .concat([[], ['Defunciones esperadas (ONU)', c.defunciones_esperadas_onu], ['Defunciones PEP', c.defunciones_pep], ['Defunciones estimadas de nacidos en el periodo', c.defunciones_estimadas_de_nacidos_en_el_periodo], ['Factor k', c.factor_k], ['Nota', c.nota]]);
   const form = [['Análisis', 'Fórmula', 'Fuente']].concat(FORMULAS.map(f => [f[0], f[1], f[2]]));
   const fu = [['Fuente', 'URL']].concat([['Componentes del cambio (PEP)', D.fuentes.componentes], ['Población por edad y sexo (PEP)', D.fuentes.edad_sexo], ['Tabla de vida de Puerto Rico (ONU, WPP 2024), años ' + D.fuentes.tabla_vida_anios.join(', '), D.fuentes.tabla_vida]]);
-  const blob = workbook([['Componentes PR', comp], ['Migración municipal', mig], ['Estructura por edad', est], ['Crecimiento', cre], ['Supervivencia', sup], ['Fórmulas', form], ['Fuentes', fu]]);
+  const PJ = D.proyeccion_pr, pys = PJ?.tendencia ? Object.keys(PJ.tendencia).sort() : [];
+  const proy = [['GEOID', 'Municipio', 'Escenario', 'Año', 'Población', 'Hombres', 'Mujeres', '% 65+', 'Dependencia de vejez'].concat(D.grupos_edad.map(a => 'H ' + a)).concat(D.grupos_edad.map(a => 'M ' + a))];
+  for (const e of ['tendencia', 'sin_migracion']) for (const yy of pys) {
+    proy.push(['72', 'Puerto Rico', ESC[e], +yy, PJ[e][yy].pob, PJ[e][yy].h, PJ[e][yy].m, PJ[e][yy].ind.pct_65, PJ[e][yy].ind.dep_vejez].concat(PJ[e][yy].gh, PJ[e][yy].gm));
+    for (const [g, m] of munis()) if (m.proy) { const z = m.proy[e][yy]; proy.push([g, m.nombre, ESC[e], +yy, z.pob, z.h, z.m, z.ind.pct_65, z.ind.dep_vejez].concat(z.gh, z.gm)); }
+  }
+  const ccr = [['GEOID', 'Municipio', 'Razón niños/mujeres 15–44 (H)', 'Razón niños/mujeres 15–44 (M)'].concat(D.grupos_edad.slice(1).map(a => 'CCR H ' + a)).concat(D.grupos_edad.slice(1).map(a => 'CCR M ' + a))]
+    .concat(munis().filter(([, m]) => m.proy).map(([g, m]) => [g, m.nombre, m.proy.cwr.h, m.proy.cwr.m].concat(m.proy.ccr.h, m.proy.ccr.m)));
+  const blob = workbook([['Componentes PR', comp], ['Migración municipal', mig], ['Proyección', proy], ['Razones de cohorte', ccr], ['Estructura por edad', est], ['Crecimiento', cre], ['Supervivencia', sup], ['Fórmulas', form], ['Fuentes', fu]]);
   const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = 'Analisis_demografico_PR_V' + D.vintage + '.xlsx'; a.click(); setTimeout(() => URL.revokeObjectURL(u), 1500);
 }
 
@@ -219,6 +287,9 @@ const FORMULAS = [
   ['Calibración de la supervivencia', 'S*(x) = 1 − k · [1 − S(x)];  k = (D_PEP − D_nacidos) / D_esperadas', 'Criterio del Observatorio: hace la estimación coherente con las defunciones oficiales'],
   ['Tasa anual de migración neta', 'm = M / (t · P̄) × 1,000;  P̄ = (P_inicio + P_final) / 2', 'Siegel y Swanson (2004)'],
   ['Crecimiento exponencial', 'r = ln(P₂ / P₁) / t;  años para duplicarse o reducirse a la mitad = ln 2 / |r|', 'Preston, Heuveline y Guillot (2001)'],
+  ['Proyección Hamilton–Perry', 'P(x+5, t+5) = CCR(x+5) · P(x, t);  CCR(x) = P(x, 2025) / P(x−5, 2020);  CCR(85+) = P(85+, 2025) / [P(80–84) + P(85+)](2020)', 'Hamilton y Perry (1962); Swanson, Schlottmann y Schmidt (2010)'],
+  ['Nacimientos proyectados (0–4)', 'P(0–4, t+5) = [P(0–4, 2025) / M(15–44, 2025)] · M(15–44, t+5)', 'Razón niños/mujeres; Smith, Tayman y Swanson (2013)'],
+  ['Escenario sin migración', 'P(x+5, t+5) = S*(x) · P(x, t), con S* calibrada y la misma razón niños/mujeres', 'Criterio del Observatorio (componentes sin migración)'],
   ['Dependencia total', '[(0–14) + (65+)] / (15–64) × 100', 'Naciones Unidas, World Population Prospects'],
   ['Dependencia juvenil y de vejez', '(0–14) / (15–64) × 100;  (65+) / (15–64) × 100', 'Naciones Unidas, World Population Prospects'],
   ['Índice de envejecimiento', '(65+) / (0–14) × 100', 'Siegel y Swanson (2004)'],
@@ -240,7 +311,7 @@ export async function initDemografia() {
   const tabs = document.querySelectorAll('[data-dm]');
   for (const b of tabs) b.addEventListener('click', () => {
     for (const x of tabs) { const on = x === b; x.classList.toggle('accent', on); x.classList.toggle('neutral', !on); x.setAttribute('aria-selected', on); }
-    for (const id of ['componentes', 'migracion', 'estructura', 'crecimiento', 'formulas']) $('dm-pane-' + id).hidden = b.dataset.dm !== id;
+    for (const id of ['componentes', 'migracion', 'estructura', 'crecimiento', 'proyeccion', 'formulas']) $('dm-pane-' + id).hidden = b.dataset.dm !== id;
   });
   const pick = e => { const g = e.target.closest('[data-geo]')?.dataset.geo; if (g && D.municipios[g]) { st.muni = g; return true; } };
   $('dm-mig-map').onclick = e => { if (pick(e)) renderPerfil(); };
@@ -253,6 +324,16 @@ export async function initDemografia() {
   $('dm-est-map').onclick = e => { if (pick(e)) { $('dm-est-muni').value = st.muni; renderPiramide(); } };
   $('dm-est-table').onclick = e => { if (pick(e)) { $('dm-est-muni').value = st.muni; renderPiramide(); } };
   $('dm-dl').onclick = descargar;
+  if (D.proyeccion_pr?.tendencia) {
+    const pys = Object.keys(D.proyeccion_pr.tendencia).sort(); st.pa = pys.at(-1); st.esc = 'tendencia';
+    $('dm-p-anio').innerHTML = pys.map(y => '<option' + (y === st.pa ? ' selected' : '') + '>' + y + '</option>').join('');
+    $('dm-p-muni').innerHTML = '<option value="72">Puerto Rico</option>' + opts;
+    $('dm-p-esc').onchange = e => { st.esc = e.target.value; renderProyeccion(); };
+    $('dm-p-anio').onchange = e => { st.pa = e.target.value; renderProyeccion(); };
+    $('dm-p-muni').onchange = e => { st.muni = e.target.value; renderPiramideP(); };
+    const pk = e => { const g = e.target.closest('[data-geo]')?.dataset.geo; if (g && D.municipios[g]) { st.muni = g; renderPiramideP(); } };
+    $('dm-p-map').onclick = pk; $('dm-p-table').onclick = pk;
+  }
   $('dm-est-muni').value = st.muni;
-  renderComponentes(); renderMigracion(); renderEstructura(); renderCrecimiento();
+  renderComponentes(); renderMigracion(); renderEstructura(); renderCrecimiento(); renderProyeccion();
 }

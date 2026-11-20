@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Observatorio Censal de Puerto Rico</title>
 <meta name="description" content="Consulta estadísticas oficiales del Censo de Estados Unidos para Puerto Rico, sus municipios y barrios.">
-<link rel="stylesheet" href="style.css?v=20261120">
-<script type="module" src="app.js?v=20261120"></script>
+<link rel="stylesheet" href="style.css?v=20261120b">
+<script type="module" src="app.js?v=20261120b"></script>
 </head>
 <body>
 <a class="skip" href="#contenido">Ir al contenido</a>
@@ -134,7 +134,7 @@
     <section id="demografia" aria-labelledby="demografia-title">
       <div class="section-header"><div><h2 id="demografia-title">Análisis demográfico</h2><p>Componentes del cambio de población, migración neta por municipio, estructura por edad y crecimiento, calculados con fórmulas demográficas estándar a partir de fuentes oficiales. Se actualiza solo cuando el Census Bureau publica una nueva edición.</p><p class="map-source" id="dm-meta"></p></div><div class="exports"><button id="dm-dl" class="btn accent"><i data-icon="download"></i> Descargar Excel</button></div></div>
       <div id="dm-root">
-      <div class="cmp-tabs-main" role="tablist"><button type="button" class="btn accent" data-dm="componentes" role="tab" aria-selected="true">Componentes del cambio</button><button type="button" class="btn neutral" data-dm="migracion" role="tab" aria-selected="false">Migración neta municipal</button><button type="button" class="btn neutral" data-dm="estructura" role="tab" aria-selected="false">Estructura por edad</button><button type="button" class="btn neutral" data-dm="crecimiento" role="tab" aria-selected="false">Crecimiento</button><button type="button" class="btn neutral" data-dm="formulas" role="tab" aria-selected="false">Fórmulas y análisis recomendados</button></div>
+      <div class="cmp-tabs-main" role="tablist"><button type="button" class="btn accent" data-dm="componentes" role="tab" aria-selected="true">Componentes del cambio</button><button type="button" class="btn neutral" data-dm="migracion" role="tab" aria-selected="false">Migración neta municipal</button><button type="button" class="btn neutral" data-dm="estructura" role="tab" aria-selected="false">Estructura por edad</button><button type="button" class="btn neutral" data-dm="crecimiento" role="tab" aria-selected="false">Crecimiento</button><button type="button" class="btn neutral" data-dm="proyeccion" role="tab" aria-selected="false">Proyección 2030–2035</button><button type="button" class="btn neutral" data-dm="formulas" role="tab" aria-selected="false">Fórmulas y análisis recomendados</button></div>
 
       <div id="dm-pane-componentes" class="cmp-pane">
         <div id="dm-kpis" class="dm-kpis"></div>
@@ -167,11 +167,26 @@
         <article class="panel table-card"><div id="dm-cre-table"></div></article>
       </div>
 
+      <div id="dm-pane-proyeccion" class="cmp-pane" hidden>
+        <p class="notice dm-note"><b>Proyección del Observatorio, no oficial.</b> El escenario de <b>tendencia</b> usa el método Hamilton–Perry: supone que cada cohorte de edad de cada municipio seguirá cambiando como lo hizo entre 2020 y 2025 (mortalidad y migración juntas), y estima los menores de 5 años con la razón de niños por mujer de 15 a 44 años. El escenario <b>sin migración</b> aplica solo la supervivencia y la misma fecundidad implícita; la diferencia entre ambos muestra el peso de la migración. El periodo base incluye los terremotos de 2020, la pandemia y años de migración atípica, por eso conviene leer los resultados como un rango y revisarlos con cada nueva edición de estimados.</p>
+        <div id="dm-pr-kpis" class="dm-kpis"></div>
+        <div class="dm-two wide">
+          <article class="panel dm-card"><h3>Puerto Rico: estimados 2020–2025 y proyecciones</h3><div id="dm-pr-chart"></div></article>
+          <article class="panel dm-card"><h3>Contraste con proyecciones independientes</h3><div id="dm-pr-ref"></div><p class="map-source">Las proyecciones independientes parten de otra población base; para compararlas se aplica su ritmo de cambio a la base del PEP.</p></article>
+        </div>
+        <div class="panel cmp-controls"><div class="cmp-row"><label class="grow">Escenario<select id="dm-p-esc"><option value="tendencia">Tendencia 2020–2025 (Hamilton–Perry)</option><option value="sin_migracion">Sin migración (solo nacimientos y defunciones)</option></select></label><label>Año<select id="dm-p-anio"></select></label><label>Pirámide de<select id="dm-p-muni"></select></label></div></div>
+        <div class="dm-two">
+          <article class="panel dm-card"><div id="dm-p-map"></div><div id="dm-p-legend" class="cmp-legend"></div><p class="map-source">Pulsa un municipio para ver su pirámide proyectada.</p></article>
+          <article class="panel dm-card"><div id="dm-p-piramide"></div></article>
+        </div>
+        <article class="panel table-card"><div id="dm-p-table"></div><div class="source-line">Bases: U.S. Census Bureau, PEP V2025 (población por edad y sexo, 2020 y 2025); tabla de vida de Puerto Rico de la ONU (WPP 2024) calibrada con las defunciones del PEP para el escenario sin migración. «Base atípica»: municipios con migración neta de ±10 por mil o más al año en 2020–2025, donde extrapolar la tendencia es menos fiable.</div></article>
+      </div>
+
       <div id="dm-pane-formulas" class="cmp-pane" hidden>
         <article class="panel dm-card"><h3>Fórmulas aplicadas</h3><div id="dm-formulas" class="formulas"></div></article>
         <article class="panel dm-card"><h3>Análisis recomendados para una próxima fase</h3>
           <div class="recs">
-            <div><h4>Proyección por cohortes (Hamilton–Perry)</h4><p>Proyecta la población municipal por edad y sexo con razones de cambio de cohorte: P(x+5, t+5) = [P(x+5, t) / P(x, t−5)] · P(x, t). Necesita solo dos edades por municipio, que ya están en el Observatorio, y sirve para horizontes de planificación de 5 a 15 años.</p><small>Swanson, Schlottmann y Schmidt (2010); Smith, Tayman y Swanson (2013).</small></div>
+            <div><h4>Proyección por componentes con supuestos explícitos</h4><p>Como complemento al Hamilton–Perry (ya incluido en la pestaña de proyección), un modelo de componentes separa fecundidad, mortalidad y migración por edad y permite escenarios alto, medio y bajo. Requiere nacimientos por edad de la madre y defunciones por edad del Registro Demográfico.</p><small>Smith, Tayman y Swanson (2013); Naciones Unidas, World Population Prospects.</small></div>
             <div><h4>Cociente de localización y análisis de cambio y participación (shift-share)</h4><p>CL = (e<sub>i</sub>/e) / (E<sub>i</sub>/E) mide la especialización del empleo de un municipio en una industria frente a Puerto Rico; el shift-share separa el cambio del empleo en efecto general, de estructura y local. Requiere County Business Patterns por sector NAICS.</p><small>U.S. Census Bureau, County Business Patterns; Stimson, Stough y Roberts (2006).</small></div>
             <div><h4>Índice de redistribución de Hoover</h4><p>H = ½ Σ |p<sub>i,t2</sub> − p<sub>i,t1</sub>|, con p<sub>i</sub> como la proporción de la población de Puerto Rico en el municipio i. Resume en un número cuánto se redistribuye la población entre municipios.</p><small>Hoover (1941); Plane y Rogerson (1994).</small></div>
             <div><h4>Demanda de vivienda por tasas de jefatura</h4><p>Hogares = Σ población(edad) × tasa de jefatura(edad). Combinado con la proyección por cohortes, estima cuántas viviendas ocupadas requerirá cada municipio. Requiere hogares por edad del jefe (ACS).</p><small>Smith, Tayman y Swanson (2013).</small></div>
@@ -187,6 +202,7 @@
           <li>Preston, S. H., Heuveline, P. y Guillot, M. (2001). <i>Demography: Measuring and Modeling Population Processes</i>. Blackwell.</li>
           <li>Swanson, D. A., Schlottmann, A. y Schmidt, B. (2010). Forecasting the population of census tracts by age and sex: An example of the Hamilton–Perry method in action. <i>Population Research and Policy Review, 29</i>(1), 47–63. <a href="https://doi.org/10.1007/s11113-009-9144-7" target="_blank" rel="noopener">doi ↗</a></li>
           <li>Smith, S. K., Tayman, J. y Swanson, D. A. (2013). <i>A Practitioner's Guide to State and Local Population Projections</i>. Springer.</li>
+          <li>Hamilton, C. H. y Perry, J. (1962). A short method for projecting population by age from one decennial census to another. <i>Social Forces, 41</i>(2), 163–170.</li>
           <li>Hoover, E. M. (1941). Interstate redistribution of population, 1850–1940. <i>The Journal of Economic History, 1</i>(2), 199–205.</li>
           <li>Plane, D. A. y Rogerson, P. A. (1994). <i>The Geographical Analysis of Population: With Applications to Planning and Business</i>. Wiley.</li>
           <li>Stimson, R. J., Stough, R. R. y Roberts, B. H. (2006). <i>Regional Economic Development: Analysis and Planning Strategy</i> (2.ª ed.). Springer.</li>
