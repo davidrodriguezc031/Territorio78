@@ -46,3 +46,5 @@ section{scroll-margin-top:18px}#mapa{scroll-margin-top:18px}.hero{background:rad
 table.cmp tr.selrow td{background:#eef6f3;font-weight:650}table.cmp tr.selrow .gid{white-space:normal;max-width:260px;display:block;font-weight:400}.cmp-map .geo path.ctx{stroke:#fff}
 @media(max-width:700px){.mp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mp-pop{left:auto;right:0}}
 .dm-selbar{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;padding:11px 14px;margin-bottom:10px}.dm-selbar .map-source{flex:1;min-width:240px;margin:0}.linkish.grp{color:#173239;font-weight:750}.dm-export .dm-selbar{display:none}
+.filter-grid .mp-field{min-width:0}#parent-sel .mp-pop{left:auto;right:0}.table-card tr.selrow td{background:#eef6f3;font-weight:650}.map-frame path.ctx{stroke:#fff;cursor:default}
+@media(max-width:650px){.filter-grid #parent-label{grid-column:1/-1}#parent-sel .mp-pop{left:0;right:auto}}

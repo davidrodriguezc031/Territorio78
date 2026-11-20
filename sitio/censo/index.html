@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Observatorio Censal de Puerto Rico</title>
 <meta name="description" content="Consulta estadísticas oficiales del Censo de Estados Unidos para Puerto Rico, sus municipios y barrios.">
-<link rel="stylesheet" href="style.css?v=20261120d">
-<script type="module" src="app.js?v=20261120d"></script>
+<link rel="stylesheet" href="style.css?v=20261120e">
+<script type="module" src="app.js?v=20261120e"></script>
 </head>
 <body>
 <a class="skip" href="#contenido">Ir al contenido</a>
@@ -45,14 +45,14 @@
       <div class="kpis" id="kpis" aria-live="polite"><p>Cargando indicadores oficiales…</p></div>
     </section>
     <section id="explorar" aria-labelledby="explorar-title">
-      <div class="section-header"><div><h2 id="explorar-title">Explorador de datos</h2><p>Selecciona un producto, un indicador y la geografía que quieres consultar.</p></div><div class="exports"><button id="export-csv" class="btn neutral" disabled><i data-icon="download"></i> CSV</button><button id="export-xlsx" class="btn accent" disabled><i data-icon="download"></i> Excel</button></div></div>
+      <div class="section-header"><div><h2 id="explorar-title">Explorador de datos</h2><p>Selecciona un producto, un indicador y la geografía. Puedes limitar la consulta a uno o varios municipios, o a un Área Funcional.</p></div><div class="exports"><button id="export-csv" class="btn neutral" disabled><i data-icon="download"></i> CSV</button><button id="export-xlsx" class="btn accent" disabled><i data-icon="download"></i> Excel</button></div></div>
       <div id="data-error" class="notice" hidden></div>
       <div class="panel filter-grid">
         <label>Producto<select id="product" disabled></select></label>
         <label>Periodo<select id="year" disabled></select></label>
         <label>Indicador<select id="indicator" disabled></select></label>
         <label>Geografía<select id="level" disabled><option value="municipio">Municipios</option><option value="barrio">Barrios y barrios-pueblo</option><option value="pr">Puerto Rico</option></select></label>
-        <label id="parent-label">Municipio<select id="parent" disabled><option value="">Todos los municipios</option></select></label>
+        <div id="parent-label" class="mp-field"><span>Municipios</span><div id="parent-sel"><button class="btn neutral mp-btn" type="button" disabled>Todos los municipios</button></div></div>
       </div>
       <p id="status" class="status" role="status"></p>
       <div class="viz-grid">

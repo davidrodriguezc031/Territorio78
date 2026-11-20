@@ -36,6 +36,38 @@ const missingColor = '#d5deda';
 let datasets = [], catalog = [], locations = [], geoIndex = new Map(), maps = {}, mapsInfo = {};
 let selected = '', page = 0, catalogPage = 0, sorting = {key:'name',dir:1};
 let lastRows = [], lastView = null;
+/* Selección de municipios (vacía = todos) */
+let S = null, picker = null, selMunis = [], selLabel = 'Todos los municipios', islandExt = null;
+const SIN_SUMA = new Set(['household_income','per_capita_income','median_rent','median_age']);
+const sumable = variable => !SIN_SUMA.has(variable.id) && !/mediana|per capita/.test(textKey(variable.label)) && !/%|anos/.test(textKey(variable.unit));
+/* Total de un grupo de geografías: recuentos sumados con MOE = √ΣMOE² (ACS General Handbook, cap. 8);
+   proporciones recalculadas con las sumas y MOE de proporción: (1/Y)·√(MOE_X² − p²·MOE_Y²). Las medianas no se combinan. */
+function aggregate(ds, variable, ids) {
+  const col = id => ds.variables.findIndex(x => x.id === id);
+  const total = (i, moeCero=false) => {
+    let sum = 0, m2 = 0, conMoe = true, miss = 0;
+    for (const g of ids) {
+      const c = ds.rows[g]?.[i], val = c?.[0];
+      if (!Number.isFinite(val)) { miss++; continue; }
+      sum += val;
+      if (c[1] == null) { if (!moeCero) conMoe = false; } else m2 += c[1] ** 2;
+    }
+    return {value: miss ? null : sum, moe: miss || !conMoe ? null : Math.round(Math.sqrt(m2)), miss};
+  };
+  const i = col(variable.id);
+  if (i < 0) return {value:null, moe:null, miss:0, how:'no'};
+  if (sumable(variable)) return {...total(i), how:'suma'};
+  const num = /_share$/.test(variable.id) ? col(variable.id.replace(/_share$/,'_count')) : -1, den = col('cre_population');
+  if (num >= 0 && den >= 0) {
+    const X = total(num), Y = total(den, true);
+    if (X.value == null || !Y.value) return {value:null, moe:null, miss:Math.max(X.miss, Y.miss), how:'razon'};
+    const p = X.value / Y.value;
+    let moe = null;
+    if (X.moe != null && Y.moe != null) { const r = X.moe ** 2 - p * p * Y.moe ** 2; moe = Math.sqrt(r >= 0 ? r : X.moe ** 2 + p * p * Y.moe ** 2) / Y.value * 100; }
+    return {value: p * 100, moe, miss: 0, how:'razon'};
+  }
+  return {value:null, moe:null, miss:0, how:'no'};
+}
 const json = async path => { const r = await fetch(path); if (!r.ok) throw Error(r.status+' '+path); return r.json(); };
 function nav() {
   const key = location.hash.slice(1) || 'inicio';
@@ -93,12 +125,14 @@ function view() {
   const index = ds?.variables.findIndex(v => v.id === $('indicator').value) ?? -1;
   if (!ds || index < 0) return null;
   const level = $('level').value;
-  const parent = $('parent').value;
+  const sel = level === 'pr' ? [] : selMunis;
+  const selSet = new Set(sel);
+  const parent = sel.length === 1 ? sel[0] : '';
   const variable = ds.variables[index];
   const length = {pr:2,municipio:5,barrio:10}[level];
   const boundary = level === 'barrio' ? mapsInfo?.observationYears?.[String(ds.boundaryYear || ds.year)] || 2025 : 2025;
   const geoSet = new Set([...Object.keys(ds.rows), ...locations.map(g => g.geoid)]);
-  const relevant = [...geoSet].filter(id => id.length === length && (!parent || level === 'pr' || id.startsWith(parent)));
+  const relevant = [...geoSet].filter(id => id.length === length && (!selSet.size || level === 'pr' || selSet.has(id.slice(0,5))));
   const available = relevant.filter(id => Array.isArray(ds.rows[id]));
   const ids = level === 'barrio' && available.length ? available : relevant;
   const query = textKey($('table-search').value.trim());
@@ -107,7 +141,15 @@ function view() {
     return {id,name:geoName(id,ds),value,moe,parent:geoName(geoParent(id)),note:ds.notes?.[id]?.[index] || ''};
   });
   const filtered = rows.filter(row => !query || textKey([row.id,row.name,row.parent].join(' ')).includes(query));
-  return {ds,variable,index,level,parent,boundary,rows,filtered,byId:new Map(rows.map(row=>[row.id,row]))};
+  /* Fila de total: suma de los municipios elegidos (cifras municipales oficiales); si faltan, suma de los barrios. */
+  let agg = null;
+  if (sel.length && (level === 'barrio' || sel.length >= 2)) {
+    const muniRows = sel.filter(id => Array.isArray(ds.rows[id]));
+    agg = aggregate(ds, variable, muniRows.length === sel.length ? sel : ids);
+    agg.label = 'Total · ' + selLabel;
+    agg.base = muniRows.length === sel.length ? sel.length + (sel.length === 1 ? ' municipio' : ' municipios') : ids.length + ' barrios';
+  }
+  return {ds,variable,index,level,parent,sel,agg,boundary,rows,filtered,byId:new Map(rows.map(row=>[row.id,row]))};
 }
 function pager(el, current, size, count, change) {
   const total = Math.max(1,Math.ceil(count/size));
@@ -139,50 +181,64 @@ function table(v) {
   $('table-caption').textContent=variable.label+' · '+ds.period;
   const cols = [['name',level==='barrio'?'Barrio o subdivisión censal':'Geografía'],...(level==='barrio'?[['parent','Municipio']]:[]),['id','GEOID'],['value','Valor'],...(variable.moe?[[null,'Margen de error (90 %)']]:[])];
   $('table-head').innerHTML='<tr>'+cols.map(([key,label])=>'<th scope="col"'+(key===sorting.key?' aria-sort="'+(sorting.dir===1?'ascending':'descending')+'"':'')+'>'+(key?'<button type="button" data-sort="'+key+'">'+label+(key===sorting.key?(sorting.dir===1?' ↑':' ↓'):'')+'</button>':label)+'</th>').join('')+'</tr>';
-  $('table-body').innerHTML=sorted.slice(page*pageSize,(page+1)*pageSize).map(r=>'<tr><td><button type="button" class="link" data-select="'+r.id+'">'+esc(r.name)+'</button></td>'+(level==='barrio'?'<td>'+esc(r.parent)+'</td>':'')+'<td>'+esc(r.id)+'</td><td>'+esc(format(r.value,variable))+'</td>'+(variable.moe?'<td>'+(r.moe==null?'No disponible':'± '+esc(format(r.moe,variable)))+'</td>':'')+'</tr>').join('') || '<tr><td colspan="'+cols.length+'" class="empty">Sin resultados con estos filtros.</td></tr>';
+  const {agg}=v;
+  const aggCell = agg ? (agg.how==='no' ? 'No se combina (mediana o valor por persona)' : agg.value==null ? 'No disponible'+(agg.miss?' · falta la cifra de '+nf.format(agg.miss)+(agg.miss===1?' geografía':' geografías'):'') : format(agg.value,variable)) : '';
+  const aggRow = agg ? '<tr class="selrow"><td>'+esc(agg.label)+'</td>'+(level==='barrio'?'<td></td>':'')+'<td>'+esc(agg.base)+'</td><td>'+esc(aggCell)+'</td>'+(variable.moe?'<td>'+(agg.moe==null?(agg.how==='no'||agg.value==null?'':'No disponible'):'± '+esc(format(agg.moe,variable)))+'</td>':'')+'</tr>' : '';
+  $('table-body').innerHTML=aggRow+sorted.slice(page*pageSize,(page+1)*pageSize).map(r=>'<tr><td><button type="button" class="link" data-select="'+r.id+'">'+esc(r.name)+'</button></td>'+(level==='barrio'?'<td>'+esc(r.parent)+'</td>':'')+'<td>'+esc(r.id)+'</td><td>'+esc(format(r.value,variable))+'</td>'+(variable.moe?'<td>'+(r.moe==null?'No disponible':'± '+esc(format(r.moe,variable)))+'</td>':'')+'</tr>').join('') || '<tr><td colspan="'+cols.length+'" class="empty">Sin resultados con estos filtros.</td></tr>';
   pager($('pagination'),page,pageSize,sorted.length,p=>{page=p;table(v);});
   const src = variable.sourceUrl || ds.sourceUrl;
-  $('data-source').innerHTML = 'U.S. Census Bureau · '+esc(ds.title)+' · '+esc(variable.table || variable.id)+' · '+sourceLink(src, 'Publicación y archivos oficiales')+(ds.description?' · '+esc(ds.description):'')+'<br>Fecha de consulta '+esc(ds.retrievedAt || '2026-11-17')+' · GEOID conserva el código geográfico oficial.';
+  const aggNote = agg && agg.how!=='no' ? '<br>Total de la selección: '+(agg.how==='suma'?'suma de las cifras publicadas; margen de error combinado con √ΣMOE² (U.S. Census Bureau, ACS General Handbook, cap. 8).':'proporción recalculada con las sumas del numerador y del universo; margen de error con la fórmula de proporciones del ACS General Handbook, cap. 8.') : '';
+  $('data-source').innerHTML = 'U.S. Census Bureau · '+esc(ds.title)+' · '+esc(variable.table || variable.id)+' · '+sourceLink(src, 'Publicación y archivos oficiales')+(ds.description?' · '+esc(ds.description):'')+'<br>Fecha de consulta '+esc(ds.retrievedAt || '2026-11-17')+' · GEOID conserva el código geográfico oficial.'+aggNote;
   for (const id of ['export-csv','export-xlsx']) $(id).disabled = !sorted.length;
 }
-function svgMap(features, title, colorFor, interactive, hero=false) {
-  const rings = f => f.geometry.type==='Polygon' ? f.geometry.coordinates : f.geometry.coordinates.flat();
-  let left=Infinity, right=-Infinity, bottom=Infinity, top=-Infinity;
-  for (const f of features) for (const ring of rings(f)) for (const [x,y] of ring) {
-    left=Math.min(left,x);right=Math.max(right,x);bottom=Math.min(bottom,y);top=Math.max(top,y);
-  }
+const ringsOf = f => f.geometry.type==='Polygon' ? f.geometry.coordinates : f.geometry.coordinates.flat();
+function extentOf(features) {
+  let l=Infinity, r=-Infinity, b=Infinity, t=-Infinity;
+  for (const f of features) for (const ring of ringsOf(f)) for (const [x,y] of ring) { if(x<l)l=x; if(x>r)r=x; if(y<b)b=y; if(y>t)t=y; }
+  return {l,r,b,t};
+}
+function svgMap(features, title, colorFor, interactive, hero=false, opts={}) {
+  const rings = ringsOf;
   if (!features.length) return '';
+  const e = opts.ext || extentOf(features);
+  const left=e.l, right=e.r, bottom=e.b, top=e.t;
   const w=(right-left)*100*Math.cos(18.2*Math.PI/180);
   const h=(top-bottom)*100;
   const xScale=100*Math.cos(18.2*Math.PI/180);
   const pad=Math.max(w,h)*.045;
-  const viewBox=[-pad,-pad,w+pad*2,h+pad*2].join(' ');
+  const viewBox=opts.box ? [opts.box.x,opts.box.y,opts.box.w,opts.box.h].map(n=>n.toFixed(2)).join(' ') : [-pad,-pad,w+pad*2,h+pad*2].join(' ');
+  const pathD=f=>rings(f).map(r=>r.map(([x,y],i)=>(i?'L':'M')+((x-left)*xScale).toFixed(2)+' '+((top-y)*100).toFixed(2)).join('')+'Z').join('');
+  const ctx=(opts.context||[]).map(f=>'<path d="'+pathD(f)+'" fill-rule="evenodd" fill="#e6ecea" class="ctx"><title>'+esc(f.properties.name)+' (fuera de la selección)</title></path>').join('');
   const paths=features.map(f=>{
     const props=f.properties;
     const id=props.geoid;
-    const d=rings(f).map(r=>r.map(([x,y],i)=>(i?'L':'M')+((x-left)*xScale).toFixed(2)+' '+((top-y)*100).toFixed(2)).join('')+'Z').join('');
+    const d=pathD(f);
     const label=interactive ? interactive.label(id,props) : props.name;
     const focus=interactive ? ' tabindex="0" role="button" data-geo="'+esc(id)+'" aria-label="'+esc(label)+'"'+(selected===id?' class="is-selected"':'') : '';
     return '<path d="'+d+'" fill-rule="evenodd" fill="'+colorFor(id,props)+'"'+focus+(hero?' stroke="#90f0d5" stroke-width=".65" vector-effect="non-scaling-stroke"':'')+'>'+(hero?'':'<title>'+esc(label)+'</title>')+'</path>';
   }).join('');
-  return '<svg viewBox="'+viewBox+'" role="'+(interactive?'group':'img')+'" aria-label="'+esc(title)+'">'+paths+'</svg>';
+  return '<svg viewBox="'+viewBox+'" role="'+(interactive?'group':'img')+'" aria-label="'+esc(title)+'">'+ctx+paths+'</svg>';
 }
 function mapView(v) {
-  const {variable,level,parent,rows,byId,ds,boundary}=v;
+  const {variable,level,sel,rows,byId,ds,boundary}=v;
   const vintageMaps = maps['barrio-'+boundary] || maps.barrio;
   const geojson = level==='barrio' ? vintageMaps : maps[level];
-  const features = (geojson?.features || []).filter(f=>!parent||(level!=='barrio'&&level!=='municipio')||f.properties.municipio===parent);
+  const selSet = new Set(sel);
+  const muniOf = f => level==='barrio' ? (f.properties.municipio || String(f.properties.geoid).slice(0,5)) : f.properties.geoid;
+  const features = (geojson?.features || []).filter(f=>!selSet.size||level==='pr'||selSet.has(muniOf(f)));
+  const zoom = selSet.size && level!=='pr' && maps.municipio && S ? {ext:islandExt, box:S.cajaSeleccion(maps.municipio, sel, islandExt), context:maps.municipio.features.filter(f=>!selSet.has(f.properties.geoid))} : {};
+  if (zoom.box === null) delete zoom.box;
   const values=features.map(f=>byId.get(f.properties.geoid)?.value).filter(Number.isFinite);
   const min=values.length?Math.min(...values):0;
   const max=values.length?Math.max(...values):0;
   const zone = val => max===min ? 2 : Math.min(4,Math.floor(5*(val-min)/(max-min)));
   const selection = byId.get(selected);
   $('drill-map').hidden=level!=='municipio'||!selection;
-  $('map-caption').textContent = (selection?selection.name+' · '+format(selection.value,variable):variable.label)+' · '+ds.period;
+  $('map-caption').textContent = (selection?selection.name+' · '+format(selection.value,variable):variable.label)+' · '+ds.period+(sel.length&&level!=='pr'?' · '+selLabel:'');
   $('clear-map').hidden=!selected;
   $('map-frame').innerHTML=svgMap(features,'Mapa de '+variable.label,(id)=>Number.isFinite(byId.get(id)?.value)?colors[zone(byId.get(id).value)]:missingColor,{
     label:(id,p)=>geoName(id,ds)+' · '+format(byId.get(id)?.value,variable)
-  }) || '<p class="empty">Cartografía no disponible para esta selección.</p>';
+  },false,zoom) || '<p class="empty">Cartografía no disponible para esta selección.</p>';
   const items=[];
   if (values.length && max===min) items.push([colors[2],format(min,variable)]);
   else if (values.length) {
@@ -190,16 +246,22 @@ function mapView(v) {
     for (let i=0;i<5;i++) items.push([colors[i],format(min+i*step,variable)+' a '+format(i===4?max:min+(i+1)*step,variable)]);
   }
   if (features.some(f=>!Number.isFinite(byId.get(f.properties.geoid)?.value))) items.push([missingColor,'No disponible']);
+  if (zoom.context?.length) items.push(['#e6ecea','Fuera de la selección']);
   $('legend').innerHTML=items.map(([c,t])=>'<span><b class="swatch" style="background:'+c+'"></b>'+esc(t)+'</span>').join('');
   const actualYear=level==='barrio' && maps['barrio-'+boundary] ? boundary:2025;
   const geoUrl=mapsInfo?.boundarySources?.[String(actualYear)] || 'https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.'+actualYear+'.html';
   const displayed=new Set(features.map(f=>f.properties.geoid));
   const unplotted=level==='barrio'?rows.filter(r=>!displayed.has(r.id)).length:0;
-  $('map-source').innerHTML=sourceLink(geoUrl,'Límites cartográficos '+actualYear)+(unplotted?' · '+nf.format(unplotted)+' subdivisiones en la tabla sin polígono visible.':'')+(selection&&variable.moe&&selection.moe!=null?' · Margen de error ± '+esc(format(selection.moe,variable)):'');
+  $('map-source').innerHTML=sourceLink(geoUrl,'Límites cartográficos '+actualYear)+(unplotted?' · '+nf.format(unplotted)+' subdivisiones en la tabla sin polígono visible.':'')+(zoom.context?.length?' · Clases calculadas solo con las geografías de la selección.':'')+(selection&&variable.moe&&selection.moe!=null?' · Margen de error ± '+esc(format(selection.moe,variable)):'');
 }
 function showTrend(v) {
-  const {ds,variable,level,parent}=v;
-  const id=selected || (level==='barrio' ? '' : level==='municipio' && parent ? parent : '72');
+  const {ds,variable,level,sel}=v;
+  const id=selected || (level==='pr' || !sel.length ? (level==='barrio' ? '' : '72') : sel.length===1 ? sel[0] : 'SEL');
+  if (id==='SEL' && aggregate(ds,variable,sel).how==='no') {
+    $('chart-caption').textContent=selLabel+' · '+variable.label;
+    $('chart').innerHTML='<p class="empty">Las medianas y los valores por persona no se combinan entre municipios. Selecciona un municipio en el mapa o en la tabla para ver su serie.</p>';
+    return;
+  }
   if (!id) {
     $('chart-caption').textContent='Serie temporal por geografía';
     $('chart').innerHTML='<p class="empty">Selecciona un barrio en el mapa o en la tabla para ver su serie.</p>';
@@ -207,11 +269,12 @@ function showTrend(v) {
   }
   const family=modeOf(ds);
   const compatible=d=>family!=='pep'||d.id.split('-')[1]===ds.id.split('-')[1];
-  const series=datasets.filter(d=>modeOf(d)===family && compatible(d) && d.rows[id]).map(d=>{
+  const series=datasets.filter(d=>modeOf(d)===family && compatible(d) && (id==='SEL' ? sel.every(g=>d.rows[g]) : d.rows[id])).map(d=>{
     const i=d.variables.findIndex(x=>x.id===variable.id);
-    return {year:d.year,period:d.period,value:d.rows[id][i]?.[0]};
+    const value=id==='SEL' ? (i<0?null:aggregate(d,d.variables[i],sel).value) : d.rows[id][i]?.[0];
+    return {year:d.year,period:d.period,value};
   }).filter(d=>Number.isFinite(d.value)).sort((a,b)=>a.year-b.year);
-  $('chart-caption').textContent=geoName(id,ds)+' · '+variable.label;
+  $('chart-caption').textContent=(id==='SEL'?'Total · '+selLabel:geoName(id,ds))+' · '+variable.label;
   if (series.length<2) {
     $('chart').innerHTML='<p class="empty">'+(series.length?'Un periodo disponible · '+esc(series[0].period)+' · '+esc(format(series[0].value,variable)):'Sin serie disponible para esta geografía e indicador.')+'</p>';
     return;
@@ -227,7 +290,7 @@ function showTrend(v) {
   const path=series.map((d,i)=>x(i)+','+y(d.value)).join(' ');
   const points=series.map((d,i)=>'<circle cx="'+x(i)+'" cy="'+y(d.value)+'" r="4" fill="#13846e"><title>'+esc(d.period+' · '+format(d.value,variable))+'</title></circle>').join('');
   const labels=series.map((d,i)=>i===0 || i===series.length-1 || (i%Math.ceil(series.length/5)===0 && x(i)<right-30)?'<text x="'+x(i)+'" y="193" text-anchor="middle">'+d.year+'</text>':'').join('');
-  $('chart').innerHTML='<svg class="linechart" role="img" aria-label="'+esc(geoName(id,ds)+' '+variable.label)+'" viewBox="0 0 420 204" font-size="9" fill="#527075">'+guides+'<polyline points="'+path+'" fill="none" stroke="#239d87" stroke-width="2.5" stroke-linejoin="round"/>'+points+labels+'</svg>'+(modeOf(ds)==='acs5'?'<p class="chart-note">Los periodos quinquenales consecutivos se superponen. Consulta los márgenes en la tabla.</p>':'');
+  $('chart').innerHTML='<svg class="linechart" role="img" aria-label="'+esc((id==='SEL'?selLabel:geoName(id,ds))+' '+variable.label)+'" viewBox="0 0 420 204" font-size="9" fill="#527075">'+guides+'<polyline points="'+path+'" fill="none" stroke="#239d87" stroke-width="2.5" stroke-linejoin="round"/>'+points+labels+'</svg>'+(modeOf(ds)==='acs5'?'<p class="chart-note">Los periodos quinquenales consecutivos se superponen. Consulta los márgenes en la tabla.</p>':'');
 }
 function chart(v) {
   if ($('chart-mode').value==='trend') {showTrend(v);return;}
@@ -242,9 +305,8 @@ function render() {
   if (!v) return;
   lastView=v;
   $('parent-label').hidden=v.level==='pr';
-  $('parent').disabled=v.level==='pr';
   const stats=v.rows.filter(d=>Number.isFinite(d.value)).length;
-  $('status').textContent=nf.format(stats)+' de '+nf.format(v.rows.length)+' geografías con cifra disponible'+(v.level==='barrio'&&!stats?' · Este producto o periodo puede no publicar cifras para barrios.':'')+(v.variable.moe?' · Márgenes de error al 90 %.':'');
+  $('status').textContent=nf.format(stats)+' de '+nf.format(v.rows.length)+' geografías con cifra disponible'+(v.sel.length?' en '+selLabel:'')+(v.level==='barrio'&&!stats?' · Este producto o periodo puede no publicar cifras para barrios.':'')+(v.variable.moe?' · Márgenes de error al 90 %.':'');
   table(v);mapView(v);chart(v);
 }
 function pick(id, go=false) {
@@ -257,7 +319,7 @@ function pick(id, go=false) {
   render();
   if (go) $('mapa').querySelector('.is-selected')?.focus({preventScroll:true});
 }
-for(const id of ['product','year','indicator','level','parent']) $(id).addEventListener('change',()=>{
+for(const id of ['product','year','indicator','level']) $(id).addEventListener('change',()=>{
   page=0;selected='';
   if(id==='product')periodOptions();
   else if(id==='year')indicatorOptions();
@@ -281,7 +343,7 @@ function useMap(e) {
 $('map-frame').addEventListener('click',useMap);
 $('map-frame').addEventListener('keydown',useMap);
 $('clear-map').addEventListener('click',()=>{selected='';render();});
-$('drill-map').addEventListener('click',()=>{if(!selected)return;$('parent').value=selected;$('level').value='barrio';selected='';page=0;render();});
+$('drill-map').addEventListener('click',()=>{if(!selected)return;selMunis=[selected];picker?.set([selected]);selLabel=picker?picker.etiqueta():geoName(selected);$('level').value='barrio';selected='';page=0;render();});
 function overview() {
   const pep=datasets.filter(d=>modeOf(d)==='pep').sort((a,b)=>b.year-a.year)[0];
   const acs=datasets.filter(d=>modeOf(d)==='acs5').sort((a,b)=>b.year-a.year)[0];
@@ -331,11 +393,12 @@ function save(blob,name) {
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function exportRows() {
-  const {ds,variable,level}=lastView;
+  const {ds,variable,level,agg,sel}=lastView;
   const header=['GEOID','Geografía','Municipio','Indicador','Unidad','Periodo','Valor','Margen de error (90 %)','Estado','Producto','Tabla o variable','Fuente oficial','Fecha de consulta'];
   const rows=lastRows.map(r=>[r.id,r.name,level==='barrio'?r.parent:'',variable.label,variable.unit,ds.period,r.value??'',r.moe??'',r.value==null?'No disponible':'Publicado',ds.title,variable.table || variable.id,variable.sourceUrl || ds.sourceUrl,ds.retrievedAt || '2026-11-17']);
-  const meta=[['Campo','Descripción'],['Producto',ds.title],['Periodo',ds.period],['Indicador',variable.label],['Tabla',variable.table||variable.id],['Unidad',variable.unit],['Geografía',level],['Consulta',ds.retrievedAt||'2026-11-17'],['Fuente',variable.sourceUrl||ds.sourceUrl],['Registros',rows.length],['Notas',ds.description||'Los valores no disponibles se conservan en blanco y se identifican en la columna Estado.']];
-  return {data:[header,...rows],meta,file:'Censo_PR_'+ds.id+'_'+variable.id+'_'+level};
+  if (agg) rows.unshift(['',agg.label+' ('+agg.base+')','',variable.label,variable.unit,ds.period,agg.value??'',agg.moe??'',agg.how==='no'?'No se combina (mediana o valor por persona)':agg.value==null?'No disponible':agg.how==='suma'?'Suma de cifras publicadas · MOE √ΣMOE²':'Proporción recalculada con las sumas',ds.title,variable.table || variable.id,variable.sourceUrl || ds.sourceUrl,ds.retrievedAt || '2026-11-17']);
+  const meta=[['Campo','Descripción'],['Producto',ds.title],['Periodo',ds.period],['Indicador',variable.label],['Tabla',variable.table||variable.id],['Unidad',variable.unit],['Geografía',level],['Selección',sel.length?selLabel+' · '+sel.map(g=>geoName(g)).join(', '):'Todos los municipios'],['Consulta',ds.retrievedAt||'2026-11-17'],['Fuente',variable.sourceUrl||ds.sourceUrl],['Registros',rows.length],['Notas',ds.description||'Los valores no disponibles se conservan en blanco y se identifican en la columna Estado.']];
+  return {data:[header,...rows],meta,file:'Censo_PR_'+ds.id+'_'+variable.id+'_'+level+(sel.length?'_seleccion':'')};
 }
 $('export-csv').addEventListener('click',()=>{
   const {data,file}=exportRows();
@@ -371,10 +434,11 @@ Promise.all([local('observations.json'),local('geografias.json'),local('metadato
   mapsInfo=meta;
   geoIndex=new Map(locations.map(item=>[item.geoid,item]));
   const municipalities=locations.filter(g=>g.geoid.length===5).sort((a,b)=>compare(a.name,b.name));
-  options($('parent'),[['','Todos los municipios'],...municipalities.map(g=>[g.geoid,g.name])]);
+  if(maps.municipio) islandExt=extentOf(maps.municipio.features);
+  initPicker(municipalities);
   const enabled = new Set(datasets.map(modeOf));
   options($('product'),Object.entries(groups).filter(([key])=>enabled.has(key)));
-  for(const id of ['product','year','indicator','level','parent']) $(id).disabled=false;
+  for(const id of ['product','year','indicator','level']) $(id).disabled=false;
   if(maps.municipio) $('hero-map').innerHTML=svgMap(maps.municipio.features,'',(_,p)=>Number(p.geoid.slice(-2))%3===0?'#3da98c58':'#63c9a62c',null,true);
   overview();periodOptions();if(catalog.length)renderCatalog();
 }).catch(error=>{
@@ -383,6 +447,16 @@ Promise.all([local('observations.json'),local('geografias.json'),local('metadato
   $('data-error').hidden=false;
   console.error(error);
 });
+
+async function initPicker(municipalities) {
+  const qs=new URL(import.meta.url).search;
+  try {
+    S=await import('./seleccion.js'+qs);
+    const AF=await S.cargarAF(qs);
+    picker=S.muniPicker($('parent-sel'),{munis:municipalities.map(g=>({geoid:g.geoid,name:g.name})),areas:AF.areas||{},onChange:(ids,lab)=>{selMunis=ids;selLabel=ids.length?lab:'Todos los municipios';page=0;selected='';render();}});
+  } catch(e) { console.error(e); $('parent-sel').innerHTML='<p class="empty">No se pudo cargar el selector de municipios.</p>'; }
+  if (lastView) render();
+}
 
 /* Comparaciones entre productos y periodos */
 for (const b of document.querySelectorAll('[data-cmp]')) b.addEventListener('click',()=>{
