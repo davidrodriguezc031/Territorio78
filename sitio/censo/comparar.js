@@ -512,7 +512,9 @@ function composeSVG() {
 /* =================== Arranque =================== */
 export async function initComparar() {
   const [obs, geos, meta, muni] = await Promise.all([getJSON('observations.json'), getJSON('geografias.json'), getJSON('metadatos.json'), getJSON('municipios.geojson')]);
-  DS = obs.datasets.map(d => ({...d, _idx: new Map(d.variables.map((v, i) => [v.id, i]))}));
+  // dec-pl-AAAA y dec-sf1-AAAA repiten, con los códigos crudos del Census Bureau, las mismas cifras de dec-AAAA:
+  // sirven de verificación en el catálogo, pero en las comparaciones aparecerían como periodos duplicados.
+  DS = obs.datasets.filter(d => !/^dec-(pl|sf1)-\d{4}$/.test(d.id)).map(d => ({...d, _idx: new Map(d.variables.map((v, i) => [v.id, i]))}));
   byId = new Map(DS.map(d => [d.id, d]));
   for (const d of DS) for (const v of d.variables) if (!INDS.has(v.id)) INDS.set(v.id, v);
   const list = Array.isArray(geos) ? geos : geos.geographies;
