@@ -124,6 +124,96 @@ def migracion(p1, p2, S):
     return m
 
 
+def indices(gh, gm):
+    gr = [h + m for h, m in zip(gh, gm)]
+    j, adul, may = sum(gr[0:3]), sum(gr[3:13]), sum(gr[13:18])
+    h, m = sum(gh), sum(gm)
+    pob = h + m
+    return {"dep_total": round(100 * (j + may) / adul, 1), "dep_juvenil": round(100 * j / adul, 1),
+            "dep_vejez": round(100 * may / adul, 1), "envejecimiento": round(100 * may / j, 1) if j else None,
+            "masculinidad": round(100 * h / m, 1), "pct_65": round(100 * may / pob, 1), "pct_0_14": round(100 * j / pob, 1)}
+
+
+def proyectar(p1, p2, f2, ratios_h, ratios_m, cwr, pasos=2):
+    """Hamilton–Perry (o supervivencia, según las razones recibidas).
+    p1, p2: dict {'gh','gm'} con 18 grupos en t−5 y t. ratios_*: 17 razones (5–9 … 80–84 y abierto 85+).
+    cwr: {'h','m'} niños de 0–4 por mujer de 15–44 en t. Devuelve lista de dicts por paso de 5 años."""
+    out, cur = [], {"gh": list(p2["gh"]), "gm": list(p2["gm"])}
+    for _ in range(pasos):
+        nxt = {}
+        for key, R in (("gh", ratios_h), ("gm", ratios_m)):
+            c = cur[key]
+            n = [0.0] * 18
+            for i in range(1, 17):
+                n[i] = R[i - 1] * c[i - 1]
+            n[17] = R[16] * (c[16] + c[17])
+            nxt[key] = n
+        mujeres_15_44 = sum(nxt["gm"][3:9])
+        nxt["gh"][0] = cwr["h"] * mujeres_15_44
+        nxt["gm"][0] = cwr["m"] * mujeres_15_44
+        nxt = {k: [max(0.0, x) for x in v] for k, v in nxt.items()}
+        out.append(nxt)
+        cur = nxt
+    return out
+
+
+def razones_hp(a, b, key):
+    """Razones de cambio de cohorte: CCR(x) = P(x, t) / P(x−5, t−5); abierta: P(85+, t) / [P(80–84) + P(85+)](t−5)."""
+    r = []
+    for i in range(1, 17):
+        r.append(b[key][i] / a[key][i - 1] if a[key][i - 1] else None)
+    den = a[key][16] + a[key][17]
+    r.append(b[key][17] / den if den else None)
+    return r
+
+
+def referencias_pr(years):
+    """Proyecciones independientes para Puerto Rico (solo como contraste): Census Bureau IDB y ONU WPP 2024."""
+    ref = {}
+    try:
+        res = {}
+        for y in years:
+            raw = None
+            for url in (f"https://api.census.gov/data/timeseries/idb/5year?get=NAME,POP&YR={y}&GENC=PR",
+                        f"https://api.census.gov/data/timeseries/idb/5year?get=NAME,POP&YR={y}&FIPS=RQ"):
+                try:
+                    raw = json.loads(get(url, tries=2))
+                    break
+                except Exception:  # noqa: BLE001
+                    continue
+            if raw:
+                h = raw[0]
+                res[y] = int(float(raw[1][h.index("POP")]))
+        if res:
+            ref["census_idb"] = {"fuente": "U.S. Census Bureau, International Database (IDB)",
+                                 "url": "https://www.census.gov/programs-surveys/international-programs/about/idb.html", "poblacion": res}
+    except Exception as e:  # noqa: BLE001
+        print("IDB no disponible:", e, file=sys.stderr)
+    try:
+        f = CACHE / "wpp2024_indicadores_PRI.csv"
+        if not f.exists():
+            raw = get("https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/CSV_FILES/WPP2024_Demographic_Indicators_Medium.csv.gz")
+            out = io.StringIO()
+            with gzip.open(io.BytesIO(raw), "rt", encoding="utf-8") as g:
+                rd = csv.DictReader(g)
+                wr = csv.DictWriter(out, fieldnames=rd.fieldnames)
+                wr.writeheader()
+                for r in rd:
+                    if r.get("ISO3_code") == "PRI":
+                        wr.writerow(r)
+            f.write_text(out.getvalue(), encoding="utf-8")
+        res = {}
+        for r in csv.DictReader(io.StringIO(f.read_text(encoding="utf-8"))):
+            if r.get("Variant", "Medium") == "Medium" and int(float(r["Time"])) in years:
+                res[int(float(r["Time"]))] = round(float(r["TPopulation1July"]) * 1000)
+        if res:
+            ref["onu_wpp2024"] = {"fuente": "Naciones Unidas, World Population Prospects 2024 (variante media)",
+                                  "url": "https://population.un.org/wpp/", "poblacion": res}
+    except Exception as e:  # noqa: BLE001
+        print("WPP indicadores no disponibles:", e, file=sys.stderr)
+    return ref
+
+
 def main():
     out_path = Path(sys.argv[1])
     refresh = "--refresh" in sys.argv
@@ -215,6 +305,40 @@ def main():
         r = d["crecimiento"]["r_anual_pct"] / 100
         d["crecimiento"]["anios_mitad_o_doble"] = round(math.log(2) / abs(r), 1) if r else None
 
+    # 2b) Proyección por cohortes a 2030 y 2035
+    #  Tendencia (Hamilton–Perry): razones de cambio de cohorte 2020–2025 constantes; 0–4 por razón niños/mujeres 15–44.
+    #  Sin migración: relaciones de supervivencia calibradas (solo mortalidad) y la misma razón niños/mujeres.
+    proy_pr = {"tendencia": {}, "sin_migracion": {}}
+    if span == 5:
+        a_pr = {k: [sum(d["anios"][t1][k][i] for d in munis.values()) for i in range(18)] for k in ("gh", "gm")}
+        b_pr = {k: [sum(d["anios"][t2][k][i] for d in munis.values()) for i in range(18)] for k in ("gh", "gm")}
+        ccr_pr = {k: razones_hp(a_pr, b_pr, k) for k in ("gh", "gm")}
+        anios_p = [t2 + 5, t2 + 10]
+        for geo, d in munis.items():
+            a, b = d["anios"][t1], d["anios"][t2]
+            ccr = {k: [x if x is not None else ccr_pr[k][i] for i, x in enumerate(razones_hp(a, b, k))] for k in ("gh", "gm")}
+            f15 = sum(b["gm"][3:9])
+            cwr = {"h": b["gh"][0] / f15 if f15 else 0, "m": b["gm"][0] / f15 if f15 else 0}
+            d["proy"] = {}
+            for esc, (rh, rm) in (("tendencia", (ccr["gh"], ccr["gm"])), ("sin_migracion", (S["m"], S["f"]))):
+                pasos = proyectar(a, b, None, rh, rm, cwr)
+                d["proy"][esc] = {}
+                for y, pz in zip(anios_p, pasos):
+                    gh = [round(x) for x in pz["gh"]]; gm = [round(x) for x in pz["gm"]]
+                    d["proy"][esc][y] = {"pob": sum(gh) + sum(gm), "h": sum(gh), "m": sum(gm), "gh": gh, "gm": gm, "ind": indices(gh, gm)}
+                    acc = proy_pr[esc].setdefault(y, {"gh": [0] * 18, "gm": [0] * 18})
+                    acc["gh"] = [p + q for p, q in zip(acc["gh"], gh)]; acc["gm"] = [p + q for p, q in zip(acc["gm"], gm)]
+            d["proy"]["ccr"] = {"h": [round(x, 4) for x in ccr["gh"]], "m": [round(x, 4) for x in ccr["gm"]]}
+            d["proy"]["cwr"] = {k: round(x, 4) for k, x in cwr.items()}
+        for esc in proy_pr:
+            for y, acc in proy_pr[esc].items():
+                acc.update({"pob": sum(acc["gh"]) + sum(acc["gm"]), "h": sum(acc["gh"]), "m": sum(acc["gm"]), "ind": indices(acc["gh"], acc["gm"])})
+        proy_pr["referencias"] = referencias_pr([t2, t2 + 5, t2 + 10])
+        proy_pr["base"] = {"anio": t2, "pob": sum(b_pr["gh"]) + sum(b_pr["gm"])}
+        proy_pr["metodo"] = ("Hamilton–Perry: P(x+5, t+5) = CCR(x+5) · P(x, t), con CCR(x) = P(x, 2025) / P(x−5, 2020); "
+                             "grupo abierto CCR(85+) = P(85+, 2025) / [P(80–84) + P(85+)](2020); "
+                             "0–4 = (niños de 0–4 / mujeres de 15–44 en 2025) × mujeres de 15–44 proyectadas.")
+
     # 3) Validación: suma municipal frente a la migración neta oficial del PEP para Puerto Rico
     oficial = sum(comp["migracion_neta"][idx[y]] for y in range(t1 + 1, t2 + 1))
     val = {"periodo": f"1 jul. {t1} – 1 jul. {t2}", "suma_municipios_5_mas": round(tot["nm"]),
@@ -232,7 +356,7 @@ def main():
            "supervivencia": {"hombres": [round(x, 5) for x in S["m"]], "mujeres": [round(x, 5) for x in S["f"]],
                              "onu_hombres": [round(x, 5) for x in S0["m"][:17]], "onu_mujeres": [round(x, 5) for x in S0["f"][:17]],
                              "calibracion": calibracion},
-           "pr": comp, "validacion": val, "municipios": munis}
+           "pr": comp, "validacion": val, "proyeccion_pr": proy_pr, "municipios": munis}
     # Solo se reescribe cuando cambian los datos (no por la fecha de generación).
     try:
         prev = json.loads(out_path.read_text(encoding="utf-8"))
