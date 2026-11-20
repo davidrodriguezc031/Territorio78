@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Observatorio Censal de Puerto Rico</title>
 <meta name="description" content="Consulta estadísticas oficiales del Censo de Estados Unidos para Puerto Rico, sus municipios y barrios.">
-<link rel="stylesheet" href="style.css?v=20261120b">
-<script type="module" src="app.js?v=20261120b"></script>
+<link rel="stylesheet" href="style.css?v=20261120c">
+<script type="module" src="app.js?v=20261120c"></script>
 </head>
 <body>
 <a class="skip" href="#contenido">Ir al contenido</a>
@@ -132,7 +132,7 @@
       </div>
     </section>
     <section id="demografia" aria-labelledby="demografia-title">
-      <div class="section-header"><div><h2 id="demografia-title">Análisis demográfico</h2><p>Componentes del cambio de población, migración neta por municipio, estructura por edad y crecimiento, calculados con fórmulas demográficas estándar a partir de fuentes oficiales. Se actualiza solo cuando el Census Bureau publica una nueva edición.</p><p class="map-source" id="dm-meta"></p></div><div class="exports"><button id="dm-dl" class="btn accent"><i data-icon="download"></i> Descargar Excel</button></div></div>
+      <div class="section-header"><div><h2 id="demografia-title">Análisis demográfico</h2><p>Componentes del cambio de población, migración neta por municipio, estructura por edad y crecimiento, calculados con fórmulas demográficas estándar a partir de fuentes oficiales. Se actualiza solo cuando el Census Bureau publica una nueva edición.</p><p class="map-source" id="dm-meta"></p></div><div class="exports dm-exports"><span class="dm-ex-label">Vista actual:</span><button class="btn neutral" data-export="pdf"><i data-icon="download"></i> PDF</button><button class="btn neutral" data-export="jpeg"><i data-icon="download"></i> JPEG</button><button class="btn neutral" data-export="pdf" data-todo="1"><i data-icon="download"></i> Informe completo (PDF)</button><button id="dm-dl" class="btn accent"><i data-icon="download"></i> Excel</button><span id="dm-ex-status" class="dm-ex-status" role="status"></span></div></div>
       <div id="dm-root">
       <div class="cmp-tabs-main" role="tablist"><button type="button" class="btn accent" data-dm="componentes" role="tab" aria-selected="true">Componentes del cambio</button><button type="button" class="btn neutral" data-dm="migracion" role="tab" aria-selected="false">Migración neta municipal</button><button type="button" class="btn neutral" data-dm="estructura" role="tab" aria-selected="false">Estructura por edad</button><button type="button" class="btn neutral" data-dm="crecimiento" role="tab" aria-selected="false">Crecimiento</button><button type="button" class="btn neutral" data-dm="proyeccion" role="tab" aria-selected="false">Proyección 2030–2035</button><button type="button" class="btn neutral" data-dm="formulas" role="tab" aria-selected="false">Fórmulas y análisis recomendados</button></div>
 

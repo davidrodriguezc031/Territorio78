@@ -296,6 +296,104 @@ const FORMULAS = [
   ['Razón de masculinidad', 'Hombres / Mujeres × 100', 'Siegel y Swanson (2004)']
 ];
 
+
+/* ---------- Exportar a PDF y JPEG ---------- */
+const VENDOR = {h2c:'./vendor/html2canvas.min.js', pdf:'./vendor/jspdf.umd.min.js'};
+const cargar = src => new Promise((ok, err) => {
+  if (document.querySelector('script[data-src="' + src + '"]')) return ok();
+  const sc = document.createElement('script'); sc.src = src + qs; sc.dataset.src = src; sc.onload = ok; sc.onerror = () => err(new Error('No se pudo cargar ' + src)); document.head.appendChild(sc);
+});
+const PANES = ['componentes', 'migracion', 'estructura', 'crecimiento', 'proyeccion', 'formulas'];
+const tabLabel = id => document.querySelector('[data-dm="' + id + '"]')?.textContent.trim() || id;
+function seleccion(pane) {
+  return [...pane.querySelectorAll('.cmp-controls select, .card-head select, .dm-card .cmp-row select')].map(sl => (sl.closest('label')?.firstChild?.textContent || '').trim() + ': ' + (sl.selectedOptions[0]?.text || '')).filter(t => !t.startsWith(':')).join(' · ');
+}
+/* html2canvas dibuja los SVG sin la hoja de estilos: se copian los estilos calculados a cada elemento. */
+function fijarEstilosSVG(root) {
+  const props = ['fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-opacity', 'fill-opacity', 'opacity', 'font-size', 'font-family', 'font-weight'];
+  for (const svg of root.querySelectorAll('svg')) {
+    const r = svg.getBoundingClientRect(); svg.setAttribute('width', r.width); svg.setAttribute('height', r.height);
+    for (const el of svg.querySelectorAll('*')) {
+      const cs = getComputedStyle(el);
+      el.setAttribute('style', props.map(k => k + ':' + cs.getPropertyValue(k)).join(';'));
+    }
+  }
+}
+function armar(ids) {
+  const wrap = document.createElement('div'); wrap.className = 'dm-export';
+  const fecha = new Intl.DateTimeFormat('es-PR', {dateStyle:'long'}).format(new Date());
+  wrap.innerHTML = '<header class="dm-ex-head"><div><b>Observatorio Censal de Puerto Rico</b><span>Análisis demográfico · ' + esc(ids.length > 1 ? 'Informe completo' : tabLabel(ids[0])) + '</span></div><small>Territorio 78 · ' + esc(fecha) + '</small></header>';
+  for (const id of ids) {
+    const pane = $('dm-pane-' + id), sel = seleccion(pane);
+    const sec = document.createElement('section'); sec.className = 'dm-ex-sec' + (wrap.querySelector('.dm-ex-sec') ? ' brk' : '');
+    sec.innerHTML = '<h2>' + esc(tabLabel(id)) + '</h2>' + (sel ? '<p class="dm-ex-sel">' + esc(sel) + '</p>' : '');
+    const c = pane.cloneNode(true); c.hidden = false; c.removeAttribute('id');
+    c.querySelectorAll('.cmp-controls, .cmp-row, button.btn, .exports').forEach(x => x.remove());
+    c.querySelectorAll('button.linkish').forEach(b => b.replaceWith(document.createTextNode(b.textContent)));
+    c.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    sec.append(c); wrap.append(sec);
+  }
+  const f = document.createElement('footer'); f.className = 'dm-ex-foot';
+  f.innerHTML = 'Fuentes: U.S. Census Bureau, Population Estimates Program V' + D.vintage + ' (componentes del cambio y población por edad y sexo); Naciones Unidas, World Population Prospects 2024 (tabla de vida de Puerto Rico). Migración neta municipal y proyecciones: estimaciones del Observatorio, no cifras oficiales. Calculado el ' + esc(D.generado.slice(0, 10)) + '.';
+  wrap.append(f);
+  document.body.append(wrap);
+  fijarEstilosSVG(wrap);
+  return wrap;
+}
+async function capturar(ids) {
+  await cargar(VENDOR.h2c);
+  const wrap = armar(ids);
+  try {
+    const base = wrap.getBoundingClientRect().top;
+    const cortes = [...wrap.querySelectorAll('.dm-ex-sec.brk, article, .dm-kpis, .notice, .dm-val, tr, .lg, .formula, .recs > div, li, footer')].map(e => [e.getBoundingClientRect().top - base, e.matches('.dm-ex-sec.brk')]);
+    const canvas = await window.html2canvas(wrap, {scale:2, backgroundColor:'#ffffff', logging:false, windowWidth:1180, useCORS:true});
+    return {canvas, cortes:cortes.map(([y, forzar]) => [y * 2, forzar])};
+  } finally { wrap.remove(); }
+}
+function guardar(blob, name) { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(u), 2000); }
+async function exportar(tipo, todo) {
+  const btns = document.querySelectorAll('[data-export]'); btns.forEach(b => b.disabled = true);
+  const aviso = $('dm-ex-status'); aviso.textContent = 'Preparando ' + (tipo === 'pdf' ? 'el PDF' : 'la imagen') + '…';
+  try {
+    const actual = PANES.find(id => !$('dm-pane-' + id).hidden) || 'componentes';
+    const ids = todo ? PANES : [actual];
+    const nombre = 'Analisis_demografico_PR_' + (todo ? 'informe' : actual) + '_V' + D.vintage;
+    const {canvas, cortes} = await capturar(ids);
+    if (tipo === 'jpeg') {
+      await new Promise(ok => canvas.toBlob(b => { guardar(b, nombre + '.jpg'); ok(); }, 'image/jpeg', 0.92));
+    } else {
+      await cargar(VENDOR.pdf);
+      const {jsPDF} = window.jspdf;
+      const doc = new jsPDF({unit:'pt', format:'letter', orientation:'portrait', compress:true});
+      const PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight(), M = 32, IW = PW - 2 * M, IH = PH - 2 * M - 16;
+      const k = IW / canvas.width, alto = IH / k; // píxeles del lienzo por página
+      const pages = []; let y0 = 0;
+      while (y0 < canvas.height - 4) {
+        let y1 = Math.min(y0 + alto, canvas.height);
+        if (y1 < canvas.height) {
+          const forz = cortes.filter(([y, f]) => f && y > y0 + 40 && y < y1).map(([y]) => y);
+          const libres = cortes.filter(([y]) => y > y0 + alto * .45 && y <= y1).map(([y]) => y);
+          y1 = forz.length ? Math.min(...forz) : libres.length ? Math.max(...libres) : y1;
+        }
+        pages.push([y0, y1]); y0 = y1;
+      }
+      pages.forEach(([a, b], i) => {
+        if (i) doc.addPage();
+        const part = document.createElement('canvas'); part.width = canvas.width; part.height = Math.ceil(b - a);
+        const cx = part.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, part.width, part.height); cx.drawImage(canvas, 0, a, canvas.width, b - a, 0, 0, canvas.width, b - a);
+        doc.addImage(part.toDataURL('image/jpeg', 0.9), 'JPEG', M, M, IW, (b - a) * k);
+        doc.setFontSize(8); doc.setTextColor(110);
+        doc.text('Observatorio Censal de Puerto Rico · Territorio 78', M, PH - 18);
+        doc.text('Página ' + (i + 1) + ' de ' + pages.length, PW - M, PH - 18, {align:'right'});
+      });
+      doc.setProperties({title:'Análisis demográfico de Puerto Rico', subject:'Observatorio Censal de Puerto Rico', author:'Plan. David J. Rodríguez Castro, MP, PPL', creator:'Territorio 78'});
+      guardar(doc.output('blob'), nombre + '.pdf');
+    }
+    aviso.textContent = '';
+  } catch (e) { console.error(e); aviso.textContent = 'No se pudo generar el archivo: ' + e.message; }
+  finally { btns.forEach(b => b.disabled = false); }
+}
+
 export async function initDemografia() {
   try { [D, GJ] = await Promise.all([getJSON('demografia.json'), getJSON('municipios.geojson')]); }
   catch (e) { $('dm-root').innerHTML = '<p class="notice">El análisis demográfico se genera con la actualización diaria; todavía no está disponible.</p>'; return; }
@@ -324,6 +422,7 @@ export async function initDemografia() {
   $('dm-est-map').onclick = e => { if (pick(e)) { $('dm-est-muni').value = st.muni; renderPiramide(); } };
   $('dm-est-table').onclick = e => { if (pick(e)) { $('dm-est-muni').value = st.muni; renderPiramide(); } };
   $('dm-dl').onclick = descargar;
+  for (const b of document.querySelectorAll('[data-export]')) b.onclick = () => exportar(b.dataset.export, b.dataset.todo === '1');
   if (D.proyeccion_pr?.tendencia) {
     const pys = Object.keys(D.proyeccion_pr.tendencia).sort(); st.pa = pys.at(-1); st.esc = 'tendencia';
     $('dm-p-anio').innerHTML = pys.map(y => '<option' + (y === st.pa ? ' selected' : '') + '>' + y + '</option>').join('');
